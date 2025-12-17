@@ -1,0 +1,110 @@
+{% extends 'base_new.html' %}
+
+{% block title %}AnimeZone - Recherche{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="container">
+        <h2 class="section-title">Explorer les animes</h2>
+        
+        <!-- Search Form -->
+        <div style="max-width: 600px; margin: 0 auto; margin-bottom: 2rem;">
+            <form action="/search" method="GET" style="display: flex; gap: 1rem;">
+                <input type="text" name="query" class="search-input" placeholder="Rechercher un anime..." value="{{ query }}" style="flex: 1; padding: 0.75rem 1rem; border-radius: 10px;">
+                <button type="submit" class="btn btn-primary">Rechercher</button>
+            </form>
+            {% if api_error %}
+            <div class="alert alert-error" style="margin-top: 1rem;">
+                <i class="fas fa-exclamation-circle"></i> {{ api_error }}
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Style pour supprimer le bouton "RECHERCHE AVANCÉE" -->
+        <style>
+            /* Cacher le bouton rose de recherche avancée */
+            a.btn[style*="background-color: #ff50b4"] {
+                display: none !important;
+            }
+        </style>
+        
+        <!-- Results Count -->
+        <div style="margin-bottom: 2rem;">
+            <p style="color: var(--text-secondary);">
+                {% if query or selected_genre %}
+                    Résultats 
+                    {% if query %}pour "{{ query }}"{% endif %}
+                    {% if selected_genre %}dans {{ selected_genre|capitalize }}{% endif %}
+                {% else %}
+                    Tous les animes
+                {% endif %}
+                ({{ anime_list|length }} résultats)
+            </p>
+        </div>
+        
+        <!-- Anime Grid -->
+        {% if anime_list %}
+        <div class="anime-grid">
+            {% for anime in anime_list %}
+            <a href="/anime/{{ anime.anime_id if anime.anime_id else anime.id }}" class="anime-card-link">
+                <div class="anime-card fade-in">
+                    <img src="{{ anime.image }}" alt="{{ anime.title }}" class="anime-card-image" loading="lazy">
+                    <div class="anime-card-body">
+                        <h3 class="anime-card-title">
+                            {{ anime.title }}
+                            {% if anime.languages and anime.languages|length > 0 %}
+                            <small style="font-size: 0.75em; color: #4CAF50; display: inline-block; margin-left: 5px;">
+                                {{ anime.languages|join(', ') }}
+                            </small>
+                            {% endif %}
+                        </h3>
+                        <!-- Section des genres retirée comme demandé -->
+                        <div class="anime-card-actions">
+                            <span class="btn btn-outline">Regarder</span>
+                        </div>
+                    </div>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="search-no-results">
+            <h3>Dernières recherches</h3>
+            <p style="color: var(--text-secondary); max-width: 500px; margin: 1rem auto;">
+                Voici les 4 derniers animes trouvés lors des recherches précédentes.
+            </p>
+            
+            {% if other_anime_list %}
+            <div class="anime-grid">
+                {% for anime in other_anime_list %}
+                <a href="/anime/{{ anime.anime_id if anime.anime_id else anime.id }}" class="anime-card-link">
+                    <div class="anime-card fade-in">
+                        <img src="{{ anime.image }}" alt="{{ anime.title }}" class="anime-card-image" loading="lazy">
+                        <div class="anime-card-body">
+                            <h3 class="anime-card-title">
+                                {{ anime.title }}
+                                {% if anime.languages and anime.languages|length > 0 %}
+                                <small style="font-size: 0.75em; color: #4CAF50; display: inline-block; margin-left: 5px;">
+                                    {{ anime.languages|join(', ') }}
+                                </small>
+                                {% endif %}
+                            </h3>
+                            <!-- Section des genres retirée comme demandé -->
+                            <div class="anime-card-actions">
+                                <span class="btn btn-outline">Regarder</span>
+                            </div>
+                        </div>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div style="text-align: center; padding: 2rem 0;">
+                <p>Aucun anime disponible dans le catalogue actuellement.</p>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

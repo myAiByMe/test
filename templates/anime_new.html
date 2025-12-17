@@ -1,0 +1,485 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ anime.title }} - Anime Zone{% endblock %}
+
+{% block content %}
+<div class="container" style="margin-top: 2rem;">
+    <!-- Breadcrumb -->
+    <div style="margin-bottom: 1.5rem;">
+        <a href="/" style="color: var(--text-secondary);">Home</a>
+        <span style="color: var(--text-muted); margin: 0 0.5rem;">/</span>
+        <span style="color: var(--text-primary);">{{ anime.title }}</span>
+    </div>
+
+    <!-- Anime Detail -->
+    <div class="anime-detail">
+        <!-- Poster -->
+        <div class="anime-poster">
+            <img src="{{ anime.image }}" alt="{{ anime.title }}">
+        </div>
+
+        <!-- Info -->
+        <div class="anime-info">
+            <h1 class="anime-title">{{ anime.title }}</h1>
+
+            <div class="anime-meta">
+                <div class="anime-rating">
+                    <span class="rating-star"><i class="fas fa-star"></i></span>
+                    <span style="margin-left: 0.5rem;">{{ anime.rating }}/10</span>
+                </div>
+                
+                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                    {% for genre in anime.genres %}
+                    <a href="/search?genre={{ genre }}" class="genre-tag">{{ genre|capitalize }}</a>
+                    {% endfor %}
+                </div>
+
+                {% if current_user.is_authenticated %}
+                <div style="margin-top: 1rem; display: flex; justify-content: center;">
+                    <button id="favorite-toggle" class="btn {% if is_favorite %}btn-warning{% else %}btn-outline{% endif %}" onclick="toggleFavorite()">
+                        <i class="fas fa-heart"></i> {% if is_favorite %}Retirer des favoris{% else %}Ajouter aux favoris{% endif %}
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="anime-description">
+                {{ anime.description }}
+            </div>
+
+            <!-- Reprendre le dernier épisode regardé -->
+            {% if latest_progress %}
+            <div class="continue-watching-btn" style="margin-bottom: 2rem;">
+                <a href="/player/{{ anime.anime_id if anime.anime_id else anime.id }}/{{ latest_progress.season_number }}/{{ latest_progress.episode_number }}" class="btn btn-primary btn-lg" style="width: auto; max-width: 300px; display: flex; align-items: center; justify-content: center; gap: 10px; margin: 0 auto;">
+                    <i class="fas fa-play-circle"></i>
+                    Continuer l'épisode {{ latest_progress.episode_number }} de la saison {{ latest_progress.season_number }}
+                </a>
+            </div>
+            {% endif %}
+
+            <!-- Seasons and Episodes -->
+            <div class="anime-seasons">
+                <h3>Saisons, Films et Épisodes</h3>
+
+                <!-- Seasons Tabs -->
+                <div class="anime-seasons-tabs">
+                    <div class="anime-seasons-container" id="seasonsTabsContainer">
+                        {% for season in anime.seasons %}
+                        <div class="season-tab" data-season="{{ season.season_number }}">
+                            {% if season.season_number == 99 %}
+                                Films
+                            {% elif season.name %}
+                                {{ season.name }}
+                                {% if 'Kai' in season.name %}
+                                <span class="badge kai-badge">Kai</span>
+                                {% endif %}
+                            {% else %}
+                                Saison {{ season.season_number }}
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+
+                        {% if anime.movies %}
+                        <div class="season-tab" data-season="movies">
+                            Films
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Season Content -->
+                {% for season in anime.seasons %}
+                <div class="season-content" data-season="{{ season.season_number }}" style="display: none;">
+                    {% if season.season_number == 99 %}
+                        <h3 class="films-header"><span class="films-icon">🎬</span> Films disponibles</h3>
+                    {% endif %}
+                    
+                    {% if season.episodes and season.episodes|length > 0 %}
+                    <ul class="episodes-list">
+                        {% for episode in season.episodes %}
+                        {% set progress_key = '%s_%s'|format(season.season_number, episode.episode_number) %}
+                        {% set has_progress = progress_key in episode_progress if episode_progress is defined else False %}
+                        {% set is_completed = has_progress and episode_progress[progress_key].completed if episode_progress is defined else False %}
+                        {% set time_pos = episode_progress[progress_key].time_position if has_progress else 0 %}
+                        {% set progress_percent = (time_pos / 1440) * 100 if has_progress else 0 %}
+
+                        <li class="episode-item {{ 'episode-completed' if is_completed else 'episode-in-progress' if has_progress else '' }}">
+                            <a href="/player/{{ anime.anime_id if anime.anime_id else anime.id }}/{{ season.season_number }}/{{ episode.episode_number }}" class="episode-link">
+                                <div class="episode-number">{{ episode.episode_number }}</div>
+                                <div class="episode-details">
+                                    <div class="episode-title">
+                                        {{ episode.title }}
+                                        
+                                        <!-- Badges des langues disponibles -->
+                                        {% if episode.languages %}
+                                            {% if 'VF' in episode.languages %}
+                                                <span class="language-badge vf">VF</span>
+                                            {% endif %}
+                                            {% if 'VOSTFR' in episode.languages %}
+                                                <span class="language-badge vostfr">VOSTFR</span>
+                                            {% endif %}
+                                        {% endif %}
+                                    </div>
+                                    <div class="episode-description">{{ episode.description }}</div>
+
+                                    {% if has_progress %}
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: {{ progress_percent }}%;"></div>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                <div style="margin-left: auto; display: flex; flex-direction: column; align-items: flex-end;">
+                                    <i class="fas {% if season.season_number == 99 %}fa-film{% else %}fa-play-circle{% endif %}" style="font-size: 1.5rem; color: var(--accent-color); margin-top: 5px;"></i>
+                                </div>
+                            </a>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <div class="no-episodes-message">
+                        <div class="icon"><i class="fas fa-exclamation-circle"></i></div>
+                        <h3>Aucun épisode disponible</h3>
+                        <p>Les épisodes pour cette saison ne sont pas encore disponibles.</p>
+                        <p>Nous travaillons à ajouter plus de contenu prochainement.</p>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block styles %}
+<style>
+    /* Style pour les onglets de saisons */
+    .anime-seasons-tabs {
+        position: relative;
+        margin-bottom: 1.5rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    .anime-seasons-container {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        padding-bottom: 10px;
+        overflow-x: hidden;
+        max-width: 100%;
+        width: 100%;
+        justify-content: flex-start;
+    }
+    
+    .season-tab {
+        padding: 0.6rem 1rem;
+        margin-bottom: 0.5rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        color: var(--text-secondary);
+        font-weight: 500;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 6px;
+        text-align: center;
+        min-width: 120px;
+        display: inline-block;
+        position: relative;
+        overflow: hidden;
+        background-color: rgba(30, 30, 30, 0.5);
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        flex-grow: 0;
+    }
+    
+    .season-tab:hover {
+        color: #fff;
+        background-color: rgba(50, 50, 50, 0.8);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    }
+    
+    .season-tab.active {
+        color: #fff;
+        background-color: rgba(0, 123, 255, 0.6);
+        border-color: rgba(0, 123, 255, 0.9);
+        box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.3);
+    }
+    
+    /* Badge Kai */
+    .kai-badge {
+        background-color: #3498db;
+        color: white;
+        font-size: 10px;
+        padding: 2px 6px;
+        border-radius: 10px;
+        margin-left: 5px;
+        font-weight: bold;
+        text-transform: uppercase;
+    }
+    
+    /* Films tab styling */
+    .season-tab[data-season="99"],
+    .season-tab[data-season="movies"] {
+        background-color: #9b59b6;
+        color: white;
+        font-weight: 600;
+    }
+    
+    .season-tab[data-season="99"]:hover,
+    .season-tab[data-season="movies"]:hover {
+        background-color: #8e44ad;
+    }
+    
+    .season-tab[data-season="99"].active,
+    .season-tab[data-season="movies"].active {
+        background-color: #8e44ad;
+        border-color: #6c3483;
+    }
+    
+    /* Films section styling */
+    .films-header {
+        color: #9b59b6;
+        margin-bottom: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding-bottom: 10px;
+        border-bottom: 2px solid rgba(155, 89, 182, 0.3);
+    }
+    
+    .films-icon {
+        font-size: 1.5rem;
+    }
+    
+    /* Episode styling */
+    .episodes-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    
+    .episode-item {
+        margin-bottom: 1rem;
+        border-radius: 8px;
+        overflow: hidden;
+        background-color: rgba(30, 30, 30, 0.5);
+        transition: all 0.3s ease;
+    }
+    
+    .episode-item:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    }
+    
+    .episode-link {
+        display: flex;
+        padding: 1rem;
+        color: var(--text-primary);
+        text-decoration: none;
+        align-items: center;
+    }
+    
+    .episode-number {
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: rgba(0, 123, 255, 0.2);
+        color: var(--accent-color);
+        border-radius: 50%;
+        font-weight: bold;
+        margin-right: 1rem;
+        flex-shrink: 0;
+    }
+    
+    .episode-details {
+        flex-grow: 1;
+    }
+    
+    .episode-title {
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    
+    .episode-description {
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+    }
+    
+    /* Styles pour les badges de langues */
+    .language-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: bold;
+    }
+    
+    .language-badge.vf {
+        background-color: #4caf50;
+        color: white;
+    }
+    
+    .language-badge.vostfr {
+        background-color: #2196f3;
+        color: white;
+    }
+    
+    /* Progress bar styling */
+    .progress-bar {
+        height: 4px;
+        background-color: rgba(255, 255, 255, 0.1);
+        border-radius: 2px;
+        margin-top: 8px;
+        overflow: hidden;
+    }
+    
+    .progress-fill {
+        height: 100%;
+        background-color: var(--accent-color);
+        border-radius: 2px;
+    }
+    
+    /* Empty state */
+    .no-episodes-message {
+        text-align: center;
+        padding: 3rem 1rem;
+        background-color: rgba(30, 30, 30, 0.5);
+        border-radius: 8px;
+    }
+    
+    .no-episodes-message .icon {
+        font-size: 3rem;
+        color: var(--text-muted);
+        margin-bottom: 1rem;
+    }
+    
+    .no-episodes-message h3 {
+        margin-bottom: 1rem;
+    }
+    
+    .no-episodes-message p {
+        color: var(--text-secondary);
+    }
+    
+    /* Responsive design */
+    @media (max-width: 768px) {
+        .episode-link {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        
+        .episode-number {
+            margin-bottom: 0.5rem;
+        }
+        
+        .episode-item div:last-child {
+            margin-left: 0;
+            margin-top: 1rem;
+            align-self: flex-end;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<!-- Script pour corriger l'affichage des films -->
+<script src="{{ url_for('static', filename='js/anime-fix.js') }}"></script>
+<script src="{{ url_for('static', filename='js/film-fix.js') }}"></script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Activer la première saison par défaut
+        var firstSeason = document.querySelector('.anime-seasons-container .season-tab');
+        if (firstSeason) {
+            firstSeason.click();
+        }
+        
+        // Ajouter les événements de clic sur les onglets de saison
+        var seasonTabs = document.querySelectorAll('.anime-seasons-container .season-tab');
+        seasonTabs.forEach(function(tab) {
+            tab.addEventListener('click', function() {
+                // Désactiver tous les onglets
+                seasonTabs.forEach(function(t) {
+                    t.classList.remove('active');
+                });
+                
+                // Activer l'onglet cliqué
+                this.classList.add('active');
+                
+                // Masquer tous les contenus
+                var seasonContents = document.querySelectorAll('.season-content');
+                seasonContents.forEach(function(content) {
+                    content.style.display = 'none';
+                });
+                
+                // Afficher le contenu correspondant
+                var seasonNumber = this.getAttribute('data-season');
+                var activeContent = document.querySelector('.season-content[data-season="' + seasonNumber + '"]');
+                if (activeContent) {
+                    activeContent.style.display = 'block';
+                }
+            });
+        });
+        
+        // Gestion du bouton Favoris
+        window.toggleFavorite = function() {
+            var favoriteButton = document.getElementById('favorite-toggle');
+            var animeId = {{ anime.id }};
+            
+            // Adaptation pour GitHub Pages: vérifier si nous sommes sur GitHub
+            var isGitHubPages = window.location.hostname.includes('github.io');
+            var endpoint = isGitHubPages ? '/animezone/api/toggle-favorite' : '/toggle-favorite';
+            
+            fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    'anime_id': animeId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Mettre à jour l'apparence du bouton
+                    if (data.is_favorite) {
+                        favoriteButton.classList.remove('btn-outline');
+                        favoriteButton.classList.add('btn-warning');
+                        favoriteButton.innerHTML = '<i class="fas fa-heart"></i> Retirer des favoris';
+                    } else {
+                        favoriteButton.classList.remove('btn-warning');
+                        favoriteButton.classList.add('btn-outline');
+                        favoriteButton.innerHTML = '<i class="fas fa-heart"></i> Ajouter aux favoris';
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Erreur:', error);
+                // Sur GitHub Pages, simulation de l'état des favoris en local
+                if (isGitHubPages) {
+                    const isFavorite = favoriteButton.classList.contains('btn-warning');
+                    if (isFavorite) {
+                        favoriteButton.classList.remove('btn-warning');
+                        favoriteButton.classList.add('btn-outline');
+                        favoriteButton.innerHTML = '<i class="fas fa-heart"></i> Ajouter aux favoris';
+                    } else {
+                        favoriteButton.classList.remove('btn-outline');
+                        favoriteButton.classList.add('btn-warning');
+                        favoriteButton.innerHTML = '<i class="fas fa-heart"></i> Retirer des favoris';
+                    }
+                }
+            });
+        };
+    });
+</script>
+{% endblock %}

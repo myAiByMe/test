@@ -1,0 +1,135 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Anime Zone{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/film-fix.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav class="navbar">
+        <div class="container navbar-container">
+            <a href="/" class="navbar-brand">
+                Anime<span>Zone</span>
+            </a>
+            
+            <ul class="navbar-nav">
+                <li class="nav-item">
+                    <a href="/" class="nav-link">Accueil</a>
+                </li>
+                <li class="nav-item">
+                    <a href="/search" class="nav-link">Recherche</a>
+                </li>
+            </ul>
+            
+            <div class="search-container">
+                <form id="searchForm" action="/search" method="GET">
+                    <input type="text" id="searchInput" name="query" class="search-input" placeholder="Rechercher un anime..." autocomplete="off">
+                    <button type="submit" class="search-button">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </form>
+            </div>
+
+            {% if current_user.is_authenticated %}
+            <div class="user-menu">
+                <div class="user-avatar" id="userAvatarToggle">
+                    <span>{{ current_user.username[0]|upper }}</span>
+                </div>
+                <div class="user-dropdown" id="userDropdown">
+                    <div class="user-dropdown-header">
+                        <div class="user-info">
+                            <span class="username">{{ current_user.username }}</span>
+                        </div>
+                    </div>
+                    <ul class="user-dropdown-menu">
+                        <li>
+                            <a href="{{ url_for('profile') }}">
+                                <i class="fas fa-user"></i> Mon Profil
+                            </a>
+                        </li>
+                        <li class="dropdown-divider"></li>
+                        <li>
+                            <a href="{{ url_for('logout') }}">
+                                <i class="fas fa-sign-out-alt"></i> Déconnexion
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </nav>
+    
+    <!-- Main Content -->
+    {% block content %}{% endblock %}
+    
+    <!-- Footer -->
+    <footer class="section" style="background-color: var(--background-card); margin-top: 2rem;">
+        <div class="container">
+            <div style="display: flex; justify-content: space-between; flex-wrap: wrap;">
+                <div style="margin-bottom: 2rem;">
+                    <h3>Anime<span style="color: var(--accent-color);">Zone</span></h3>
+                    <p style="color: var(--text-secondary); max-width: 400px;">
+                        Votre destination ultime pour regarder des animes en ligne.
+                        Parcourez notre vaste collection de séries et profitez de vos émissions préférées.
+                    </p>
+                </div>
+                
+                <div style="margin-bottom: 2rem;">
+                    <h4>Liens Rapides</h4>
+                    <ul style="list-style: none;">
+                        <li><a href="/">Accueil</a></li>
+                        <li><a href="/search">Recherche</a></li>
+                    </ul>
+                </div>
+                
+                <div style="margin-bottom: 2rem;">
+                    <h4>Genres Populaires</h4>
+                    <ul style="list-style: none;">
+                        <li><a href="/search?genre=action">Action</a></li>
+                        <li><a href="/search?genre=adventure">Aventure</a></li>
+                        <li><a href="/search?genre=fantasy">Fantaisie</a></li>
+                        <li><a href="/search?genre=horror">Horreur</a></li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div style="text-align: center; margin-top: 2rem; padding-top: 2rem; border-top: 1px solid var(--border-color);">
+                <p style="color: var(--text-muted);">
+                    &copy; 2024 AnimeZone. Tous droits réservés.
+                </p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const userAvatarToggle = document.getElementById('userAvatarToggle');
+            const userDropdown = document.getElementById('userDropdown');
+
+            if (userAvatarToggle && userDropdown) {
+                userAvatarToggle.addEventListener('click', function() {
+                    userDropdown.classList.toggle('show');
+                });
+
+                document.addEventListener('click', function(event) {
+                    if (!userAvatarToggle.contains(event.target) && !userDropdown.contains(event.target)) {
+                        userDropdown.classList.remove('show');
+                    }
+                });
+            }
+        });
+    </script>
+
+    <!-- Scripts -->
+    <script src="{{ url_for('static', filename='js/cors-proxy.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

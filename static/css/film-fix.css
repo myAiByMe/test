@@ -1,0 +1,227 @@
+/**
+ * film-fix.css - Styles améliorés pour l'affichage des films dans AnimeZone
+ */
+
+/* Container pour la grille des saisons */
+.seasons-tabs-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 15px;
+    padding: 15px;
+    width: 100%;
+}
+
+/* Styles spécifiques pour tous les onglets de saison */
+.season-tab {
+    background-color: rgba(30, 30, 30, 0.8);
+    color: white;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+}
+
+.season-tab:hover {
+    background-color: rgba(255, 64, 129, 0.8);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(255, 64, 129, 0.3);
+}
+
+.season-tab.active {
+    background-color: rgba(255, 64, 129, 1);
+    box-shadow: 0 4px 15px rgba(255, 64, 129, 0.4);
+}
+
+/* Styles spécifiques pour l'onglet des films */
+.season-tab[data-season="99"],
+.films-tab {
+    background-color: #9b59b6; /* Violet distinctif pour les films */
+    color: white !important;
+    font-weight: bold !important;
+    border-bottom: 3px solid #8e44ad !important;
+    padding: 10px 15px !important;
+    position: relative;
+    overflow: hidden;
+}
+
+.season-tab[data-season="99"]::before,
+.films-tab::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(45deg, rgba(255,255,255,0.1), transparent);
+    z-index: 1;
+}
+
+.season-tab[data-season="99"]:hover,
+.films-tab:hover {
+    background-color: #8e44ad !important;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+/* Style pour l'onglet actif des films */
+.season-tab[data-season="99"].active,
+.films-tab.active {
+    background-color: #8e44ad !important;
+    border-bottom-color: #6c3483 !important;
+}
+
+/* Style pour la section de contenu des films */
+.season-content[data-season="99"],
+.films-content {
+    border-left: 4px solid #9b59b6 !important;
+    padding-left: 15px !important;
+    animation: fadeInContent 0.5s ease-out;
+    background-color: rgba(155, 89, 182, 0.05);
+    border-radius: 8px;
+    padding: 15px;
+    margin-top: 10px;
+}
+
+@keyframes fadeInContent {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* En-tête de section pour les films */
+.films-header {
+    margin: 0 0 20px 0;
+    padding: 10px 15px;
+    background: linear-gradient(to right, rgba(155, 89, 182, 0.2), transparent);
+    border-radius: 6px;
+    border-left: 3px solid #9b59b6;
+    position: relative;
+}
+
+.films-header h3 {
+    color: #8e44ad;
+    font-size: 18px;
+    margin: 0;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+}
+
+.films-header h3::before {
+    content: '🎬';
+    margin-right: 10px;
+    font-size: 20px;
+}
+
+/* Style pour les éléments d'épisode de films */
+.films-content .episode-item {
+    border-left: 3px solid #9b59b6 !important;
+    transition: all 0.3s ease;
+    margin-bottom: 12px !important;
+    background-color: rgba(255, 255, 255, 0.8);
+}
+
+.films-content .episode-item:hover {
+    transform: translateX(5px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.films-content .fa-film {
+    color: #9b59b6;
+    font-size: 1.3em;
+    margin-right: 10px;
+}
+
+/* Badge "Film" à côté du titre */
+.films-content .episode-title {
+    position: relative;
+}
+
+.films-content .episode-title::after {
+    content: "Film";
+    display: inline-block;
+    background-color: #9b59b6;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    margin-left: 10px;
+    vertical-align: middle;
+    font-weight: bold;
+}
+
+/* Animation au survol des films */
+.films-content .episode-link {
+    position: relative;
+    overflow: hidden;
+}
+
+.films-content .episode-link::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+    transition: 0.5s;
+}
+
+.films-content .episode-link:hover::after {
+    left: 100%;
+}
+
+/* Styles pour saisons spéciales "Kai" */
+.kai-tab {
+    background-color: #3498db !important;
+    color: white !important;
+    border-bottom: 3px solid #2980b9 !important;
+}
+
+.kai-tab:hover {
+    background-color: #2980b9 !important;
+}
+
+.kai-tab.active {
+    background-color: #2980b9 !important;
+    border-bottom-color: #1c638d !important;
+}
+
+.kai-content {
+    border-left: 4px solid #3498db !important;
+    background-color: rgba(52, 152, 219, 0.05);
+}
+
+.kai-content .episode-item {
+    border-left: 3px solid #3498db !important;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .films-content .episode-title::after {
+        display: block;
+        margin: 5px 0 0 0;
+        width: fit-content;
+    }
+    
+    .season-tab[data-season="99"],
+    .films-tab,
+    .kai-tab {
+        font-size: 14px;
+        padding: 8px 12px !important;
+    }
+    
+    .films-header h3 {
+        font-size: 16px;
+    }
+    
+    .films-header h3::before {
+        font-size: 16px;
+    }
+}

@@ -1,0 +1,127 @@
+[
+    {
+        "id": 4,
+        "anime_id": 4,
+        "title": "One Punch Man",
+        "description": "Saitama est un héros qui a le pouvoir d'éliminer ses adversaires en un seul coup de poing. Mais à force d'être trop puissant, il s'ennuie et cherche un adversaire à sa taille.",
+        "image": "https://cdn.statically.io/gh/Anime-Sama/IMG/img/contenu/one-punch-man.jpg",
+        "genres": ["Action", "Comédie", "Super-héros"],
+        "rating": 8.8,
+        "featured": true,
+        "has_episodes": true,
+        "languages": ["VOSTFR", "VF"],
+        "seasons": [
+            {
+                "season_number": 1,
+                "name": "Saison 1",
+                "episodes": [
+                    {
+                        "episode_number": 1,
+                        "title": "L'homme le plus fort",
+                        "description": "Introduction de Saitama, le héros le plus puissant qui s'ennuie de sa force."
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "id": 3,
+        "anime_id": 3,
+        "title": "Demon Slayer",
+        "description": "Tanjiro Kamado devient un chasseur de démons après que sa famille est massacrée et sa sœur transformée en démon.",
+        "image": "https://cdn.statically.io/gh/Anime-Sama/IMG/img/contenu/demon-slayer.jpg",
+        "genres": ["Action", "Démons", "Historique"],
+        "rating": 9.0,
+        "featured": true,
+        "has_episodes": true,
+        "languages": ["VOSTFR", "VF"],
+        "seasons": [
+            {
+                "season_number": 1,
+                "name": "Saison 1",
+                "episodes": [
+                    {
+                        "episode_number": 1,
+                        "title": "Cruauté",
+                        "description": "Tanjiro découvre sa famille assassinée et sa sœur transformée en démon."
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "id": 12,
+        "anime_id": 12,
+        "title": "Pokemon",
+        "description": "Les aventures de Sacha et Pikachu à travers le monde Pokémon.",
+        "image": "https://cdn.statically.io/gh/Anime-Sama/IMG/img/contenu/pokemon.jpg",
+        "genres": ["Aventure", "Action", "Fantasy"],
+        "rating": 7.8,
+        "featured": true,
+        "has_episodes": true,
+        "languages": ["VOSTFR", "VF"],
+        "seasons": [
+            {
+                "season_number": 1,
+                "name": "Saison 1",
+                "episodes": [
+                    {
+                        "episode_number": 1,
+                        "title": "Pokemon",
+                        "description": "Sacha et Pikachu commencent leur aventure."
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "id": 8,
+        "anime_id": 8,
+        "title": "Jujutsu Kaisen",
+        "description": "Yuji Itadori, un lycéen, rejoint une organisation secrète d'exorcistes pour éliminer une puissante malédiction qui l'habite.",
+        "image": "https://cdn.statically.io/gh/Anime-Sama/IMG/img/contenu/jujutsu-kaisen.jpg",
+        "genres": ["Action", "Surnaturel", "École"],
+        "rating": 8.9,
+        "featured": true,
+        "has_episodes": true,
+        "languages": ["VOSTFR", "VF"],
+        "seasons": [
+            {
+                "season_number": 1,
+                "name": "Saison 1",
+                "episodes": [
+                    {
+                        "episode_number": 1,
+                        "title": "Ryomen Sukuna",
+                        "description": "Yuji Itadori avale un doigt maudit pour sauver ses amis et devient l'hôte de Sukuna."
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "id": 10,
+        "anime_id": 10,
+        "title": "Dragon Ball",
+        "description": "Les aventures de Son Goku depuis son enfance jusqu'à l'âge adulte, alors qu'il s'entraîne aux arts martiaux et explore le monde à la recherche des Dragon Balls.",
+        "image": "https://cdn.statically.io/gh/Anime-Sama/IMG/img/contenu/dragon-ball.jpg",
+        "genres": ["Action", "Aventure", "Fantasy"],
+        "rating": 8.7,
+        "featured": true,
+        "has_episodes": true,
+        "languages": ["VOSTFR", "VF"],
+        "seasons": [
+            {
+                "season_number": 1,
+                "name": "Saison 1",
+                "episodes": [
+                    {
+                        "episode_number": 1,
+                        "title": "L'aventure commence",
+                        "description": "Goku rencontre Bulma et part à l'aventure à la recherche des Dragon Balls."
+                    }
+                ]
+            }
+        ]
+    }
+]

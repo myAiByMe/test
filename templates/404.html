@@ -1,0 +1,18 @@
+{% extends 'base_new.html' %}
+
+{% block title %}Erreur - AnimeZone{% endblock %}
+
+{% block content %}
+<div class="error-container">
+    <div class="error-code">404</div>
+    <h2 class="error-message">Page Non Trouvée</h2>
+    <p style="color: var(--text-secondary); max-width: 600px; margin: 0 auto 2rem auto;">
+        {% if message %}
+            {{ message }}
+        {% else %}
+            La page que vous recherchez a peut-être été supprimée, son nom a changé, ou elle est temporairement indisponible.
+        {% endif %}
+    </p>
+    <a href="/" class="btn btn-primary">Retour à l'Accueil</a>
+</div>
+{% endblock %}

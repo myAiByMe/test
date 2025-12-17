@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+
+{% block title %}Anime Zone - Accueil{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="hero">
+    <div class="container hero-content">
+        <h1 class="hero-title">Découvrez le Paradis Anime</h1>
+        <p class="hero-subtitle">
+            Explorez notre vaste collection de séries anime captivantes, des aventures pleines d'action aux histoires émouvantes. Votre prochaine obsession anime vous attend !
+        </p>
+        <a href="/search" class="btn btn-primary">Parcourir les Animes</a>
+    </div>
+</section>
+
+<!-- Featured Anime Section -->
+<section class="section">
+    <div class="container">
+        <h2 class="section-title">Animes à la Une</h2>
+
+
+
+        <!-- Anime Grid -->
+        <div class="anime-grid">
+            {% for anime in anime_list %}
+            <a href="/anime/{{ anime.id }}" class="anime-card-link">
+                <div class="anime-card fade-in">
+                    {% if anime.image %}
+                    <img src="{{ anime.image }}" alt="{{ anime.title }}" class="anime-card-image" loading="lazy" onerror="this.src='/static/images/default_anime.jpg'; this.onerror=null;">
+                    {% else %}
+                    <img src="/static/images/default_anime.jpg" alt="{{ anime.title }}" class="anime-card-image" loading="lazy">
+                    {% endif %}
+                    <div class="anime-card-body">
+                        <h3 class="anime-card-title">{{ anime.title }}</h3>
+                        <div class="anime-card-genres">
+                            {% for genre in anime.genres %}
+                            <span class="genre-tag">{{ genre|capitalize }}</span>
+                            {% endfor %}
+                        </div>
+                        <div class="anime-card-info">
+                            <div class="anime-card-rating">
+                                <span class="rating-star"><i class="fas fa-star"></i></span>
+                                <span>{{ anime.rating }}</span>
+                            </div>
+                        </div>
+                        <div class="anime-card-actions">
+                            <span class="btn btn-outline">Regarder</span>
+                        </div>
+                    </div>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+
+        <!-- View More Button -->
+        <div style="text-align: center; margin-top: 3rem;">
+            <a href="/search" class="btn btn-primary">Voir Tous les Animes</a>
+        </div>
+    </div>
+</section>
+
+<!-- Section supplémentaire personnalisable -->
+<section class="section" style="background-color: var(--background-card);">
+    <div class="container">
+        <h2 class="section-title">Découvrir de Nouvelles Séries</h2>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 2rem;">
+            <!-- Séries les mieux notées -->
+            <a href="/search?sort=rating" class="custom-anime-card" style="background-color: #333; border-radius: 10px; padding: 1.5rem; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; text-decoration: none;">
+                <i class="fas fa-star" style="font-size: 3rem; color: var(--primary-color); margin-bottom: 1rem;"></i>
+                <h4 style="color: #fff; margin-bottom: 0.5rem;">Séries Populaires</h4>
+                <p style="color: #ccc;">Explorez les animes les mieux notés</p>
+                <span class="btn btn-outline" style="margin-top: 1rem;">Explorer</span>
+            </a>
+
+            {% for genre in ['action', 'aventure', 'fantastique', 'romance', 'mystère'] %}
+            <a href="/search?genre={{ genre }}" class="custom-anime-card" style="background-color: #333; border-radius: 10px; padding: 1.5rem; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; text-decoration: none;">
+                <i class="fas {% if genre == 'action' %}fa-fire{% elif genre == 'aventure' %}fa-compass{% elif genre == 'fantastique' %}fa-dragon{% elif genre == 'romance' %}fa-heart{% elif genre == 'mystère' %}fa-search{% else %}fa-film{% endif %}" style="font-size: 3rem; color: var(--primary-color); margin-bottom: 1rem;"></i>
+                <h4 style="color: #fff; margin-bottom: 0.5rem;">{{ genre|capitalize }}</h4>
+                <p style="color: #ccc;">Découvrez nos meilleurs animes de {{ genre }}</p>
+                <span class="btn btn-outline" style="margin-top: 1rem;">Explorer</span>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+
+{% endblock %}

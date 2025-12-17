@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="AnimeZone - Regardez vos animes et films préférés en streaming">
+    <title>AnimeZone - Streaming d'Anime</title>
+    
+    <!-- Open Graph tags pour le partage sur les réseaux sociaux -->
+    <meta property="og:title" content="AnimeZone - Streaming d'Anime">
+    <meta property="og:description" content="Regardez vos animes et films préférés en streaming">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://votre-nom-utilisateur.github.io/animezone/">
+    
+    <!-- CSS principal -->
+    <link rel="stylesheet" href="css/style.css">
+    
+    <!-- Polices -->
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- Icônes -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav class="navbar">
+        <div class="container navbar-container">
+            <a href="index.html" class="navbar-brand">
+                Anime<span>Zone</span>
+            </a>
+            
+            <ul class="navbar-nav">
+                <li class="nav-item">
+                    <a href="index.html" class="nav-link">Accueil</a>
+                </li>
+                <li class="nav-item">
+                    <a href="search.html" class="nav-link">Recherche</a>
+                </li>
+                <li class="nav-item github-only">
+                    <a href="#" class="nav-link login-link">Connexion</a>
+                </li>
+            </ul>
+            
+            <div class="search-container">
+                <form id="searchForm" action="search.html" method="GET">
+                    <input type="text" id="searchInput" name="query" class="search-input" placeholder="Rechercher un anime..." autocomplete="off">
+                    <button type="submit" class="search-button">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </form>
+            </div>
+            
+            <button class="hamburger">
+                <i class="fas fa-bars"></i>
+            </button>
+        </div>
+    </nav>
+    
+    <!-- Main Content -->
+    <div class="container" style="margin-top: 2rem;">
+        <!-- Banner - GitHub Pages Version -->
+        <div class="github-pages-notice">
+            <p><i class="fas fa-info-circle"></i> Vous consultez la version statique de AnimeZone hébergée sur GitHub Pages. Certaines fonctionnalités peuvent être limitées.</p>
+        </div>
+        
+        <!-- Hero Section -->
+        <div class="hero-section">
+            <h1>Bienvenue sur AnimeZone</h1>
+            <p>Votre destination ultime pour le streaming d'animes et de films</p>
+        </div>
+        
+        <!-- Popular Animes Section -->
+        <section class="section">
+            <h2 class="section-title">Animes Populaires</h2>
+            <div class="animes-grid" id="popularAnimes">
+                <!-- Les animes populaires seront chargés ici via le JavaScript -->
+                <div class="loading-spinner">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <p>Chargement des animes...</p>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Recently Added Section -->
+        <section class="section">
+            <h2 class="section-title">Ajouts Récents</h2>
+            <div class="animes-grid" id="recentAnimes">
+                <!-- Les ajouts récents seront chargés ici via le JavaScript -->
+                <div class="loading-spinner">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <p>Chargement des animes...</p>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Genres Section -->
+        <section class="section">
+            <h2 class="section-title">Parcourir par Genre</h2>
+            <div class="genres-grid" id="genresGrid">
+                <!-- Les genres seront chargés ici via le JavaScript -->
+                <a href="search.html?genre=action" class="genre-item">Action</a>
+                <a href="search.html?genre=adventure" class="genre-item">Aventure</a>
+                <a href="search.html?genre=comedy" class="genre-item">Comédie</a>
+                <a href="search.html?genre=drama" class="genre-item">Drame</a>
+                <a href="search.html?genre=fantasy" class="genre-item">Fantaisie</a>
+                <a href="search.html?genre=horror" class="genre-item">Horreur</a>
+                <a href="search.html?genre=mystery" class="genre-item">Mystère</a>
+                <a href="search.html?genre=romance" class="genre-item">Romance</a>
+                <a href="search.html?genre=sci-fi" class="genre-item">Science-Fiction</a>
+                <a href="search.html?genre=slice-of-life" class="genre-item">Tranche de vie</a>
+            </div>
+        </section>
+    </div>
+    
+    <!-- Footer -->
+    <footer class="section" style="background-color: var(--background-card); margin-top: 2rem;">
+        <div class="container">
+            <div style="display: flex; justify-content: space-between; flex-wrap: wrap;">
+                <div style="margin-bottom: 2rem;">
+                    <h3>Anime<span style="color: var(--accent-color);">Zone</span></h3>
+                    <p style="color: var(--text-secondary); max-width: 400px;">
+                        Votre destination ultime pour regarder des animes en ligne.
+                        Parcourez notre vaste collection de séries et profitez de vos émissions préférées.
+                    </p>
+                </div>
+                
+                <div style="margin-bottom: 2rem;">
+                    <h4>Liens Rapides</h4>
+                    <ul style="list-style: none;">
+                        <li><a href="index.html">Accueil</a></li>
+                        <li><a href="search.html">Recherche</a></li>
+                    </ul>
+                </div>
+                
+                <div style="margin-bottom: 2rem;">
+                    <h4>Genres Populaires</h4>
+                    <ul style="list-style: none;">
+                        <li><a href="search.html?genre=action">Action</a></li>
+                        <li><a href="search.html?genre=adventure">Aventure</a></li>
+                        <li><a href="search.html?genre=fantasy">Fantaisie</a></li>
+                        <li><a href="search.html?genre=horror">Horreur</a></li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div style="text-align: center; margin-top: 2rem; padding-top: 2rem; border-top: 1px solid var(--border-color);">
+                <p style="color: var(--text-muted);">
+                    &copy; 2023 AnimeZone. All rights reserved.
+                </p>
+            </div>
+        </div>
+    </footer>
+    
+    <!-- Script de contournement CORS pour GitHub Pages -->
+    <script src="js/cors-proxy.js"></script>
+    
+    <!-- Script pour charger les données pour GitHub Pages -->
+    <script src="js/github-pages-loader.js"></script>
+    
+    <!-- Script principal du site -->
+    <script src="js/main.js"></script>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Détecter si nous sommes sur GitHub Pages
+            if (window.location.hostname.includes('github.io')) {
+                document.body.classList.add('github-pages');
+                
+                // Initialiser le chargeur de données pour GitHub Pages
+                if (window.GithubPagesLoader) {
+                    window.GithubPagesLoader.init();
+                }
+            }
+        });
+    </script>
+</body>
+</html>
