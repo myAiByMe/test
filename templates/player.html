@@ -16,10 +16,7 @@
     <!-- Video Player -->
     <div class="video-container">
         <div class="player-wrapper">
-            <!-- Overlay anti-pub désactivé pour éviter les problèmes de compatibilité -->
-            <!-- <div id="anti-pub-overlay" class="anti-pub-overlay"></div> -->
-
-            <!-- Lecteur vidéo standard pour toutes les sources -->
+            <!-- Lecteur vidéo -->
             <iframe id="video-player" 
                     src="{{ download_url }}" 
                     allow="autoplay; fullscreen" 
@@ -27,86 +24,10 @@
                     referrerpolicy="no-referrer"
                     allowfullscreen>
             </iframe>
-
-            <!-- Overlay pour les contrôles personnalisés -->
-            <div id="player-overlay" class="player-overlay">
-                <div class="play-pause-btn">
-                    <i class="fas fa-play"></i>
-                </div>
-            </div>
-
-            <!-- Message d'aide -->
-            <div class="player-help-message">
-                Pour une meilleure expérience: 
-                <span>Double-cliquez au centre du lecteur pour mettre en plein écran</span>
-                <span>Utilisez les contrôles en bas à droite pour ajuster le volume</span>
-            </div>
-        </div>
-
-        <!-- Boutons de changement de langue et de source très visibles -->
-        <div class="big-source-buttons">
-            <!-- Section pour changer de langue (VF/VOSTFR) -->
-            {% if episode.all_sources and ('VF' in episode.all_sources or 'VOSTFR' in episode.all_sources) %}
-            <div class="language-section">
-                <h3 class="source-title">► Choisir la langue :</h3>
-                <div class="big-buttons-container language-buttons">
-                    {% if 'VF' in episode.all_sources and episode.all_sources['VF'] %}
-                        <a href="/player/{{ anime.anime_id if anime.anime_id else anime.id }}/{{ season.season_number }}/{{ episode.episode_number }}?lang=VF" 
-                           class="big-source-button language-button {% if episode_lang == 'VF' %}active{% endif %}">
-                            <i class="fas fa-language"></i> VF (Français)
-                        </a>
-                    {% endif %}
-                    
-                    {% if 'VOSTFR' in episode.all_sources and episode.all_sources['VOSTFR'] %}
-                        <a href="/player/{{ anime.anime_id if anime.anime_id else anime.id }}/{{ season.season_number }}/{{ episode.episode_number }}?lang=VOSTFR" 
-                           class="big-source-button language-button {% if episode_lang == 'VOSTFR' %}active{% endif %}">
-                            <i class="fas fa-closed-captioning"></i> VOSTFR (Sous-titré)
-                        </a>
-                    {% endif %}
-                </div>
-            </div>
-            {% endif %}
-            
-            <!-- Section pour changer de source vidéo -->
-            <h3 class="source-title">► Changer de source vidéo :</h3>
-            <div class="big-buttons-container">
-                <!-- Bouton de téléchargement direct -->
-                <button id="download-button" class="big-source-button download-button">
-                    <i class="fas fa-download"></i> Télécharger
-                </button>
-
-                {% if episode.all_sources and episode.all_sources[episode_lang] %}
-                    {% for alt_url in episode.all_sources[episode_lang][:5] %}
-                        <a href="/player/{{ anime.anime_id if anime.anime_id else anime.id }}/{{ season.season_number }}/{{ episode.episode_number }}?source={{ alt_url|urlencode }}&lang={{ episode_lang }}" 
-                           class="big-source-button {% if alt_url == download_url %}active{% endif %}">
-                            {% if 'sendvid' in alt_url %}
-                                <i class="fas fa-play-circle"></i> SendVid
-                            {% elif 'oneupload' in alt_url %}
-                                <i class="fas fa-play-circle"></i> OneUpload
-                            {% elif 'mixdrop' in alt_url %}
-                                <i class="fas fa-play-circle"></i> MixDrop
-                            {% elif 'dood' in alt_url %}
-                                <i class="fas fa-play-circle"></i> DoodStream
-                            {% elif 'vidmoly' in alt_url %}
-                                <i class="fas fa-play-circle"></i> Vidmoly
-                            {% else %}
-                                <i class="fas fa-play-circle"></i> Source {{ loop.index }}
-                            {% endif %}
-                        </a>
-                    {% endfor %}
-                {% else %}
-                    <div class="no-sources">Aucune source alternative disponible</div>
-                {% endif %}
-
-                <!-- Bouton pour recharger la vidéo -->
-                <button onclick="reloadPlayer()" class="big-source-button reload-button">
-                    <i class="fas fa-sync-alt"></i> Recharger la vidéo
-                </button>
-            </div>
         </div>
     </div>
 
-    <!-- Information sur la source vidéo et boutons de lecteurs alternatifs -->
+    <!-- Information sur la source vidéo -->
     <div style="margin-top: 0.5rem; margin-bottom: 1rem; text-align: center; font-size: 0.85rem; color: var(--text-muted);">
         Source: 
         {% if 'vidmoly' in download_url %}
@@ -132,13 +53,7 @@
         {% if episode.languages and episode.languages|length > 0 %}
             - Langues disponibles: {{ episode.languages|join(', ') }}
         {% endif %}
-
-        <!-- Aucun message de détection d'erreur -->
     </div>
-
-    <!-- On supprime cette section car on a déjà les boutons de sources au-dessus -->
-
-
 
     <!-- Episode Info -->
     <div style="margin-bottom: 2rem;">
@@ -197,142 +112,14 @@
 
 {% block styles %}
 <style>
-    /* Styles pour le lecteur vidéo personnalisé */
+    /* Styles pour le lecteur vidéo */
     .player-wrapper {
         position: relative;
         width: 100%;
         height: 0;
         padding-bottom: 56.25%; /* Ratio 16:9 */
         background-color: #000;
-        overflow: hidden; /* Empêche les éléments de déborder */
-    }
-
-    /* Nouveaux styles pour les gros boutons très visibles */
-    .big-source-buttons {
-        margin: 15px 0;
-        background-color: #263238;
-        border-radius: 8px;
-        padding: 15px;
-        text-align: center;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-    }
-
-    .source-title {
-        font-size: 1.2rem;
-        margin-bottom: 15px;
-        font-weight: bold;
-        color: #fff;
-        text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
-    }
-
-    .big-buttons-container {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        justify-content: center;
-    }
-
-    .big-source-button {
-        padding: 12px 20px;
-        background-color: #37474F;
-        border-radius: 5px;
-        color: white;
-        text-decoration: none;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-weight: 600;
-        font-size: 1rem;
-        transition: all 0.3s ease;
-        border: none;
-        cursor: pointer;
-        min-width: 120px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-    }
-
-    .big-source-button:hover {
-        background-color: #455A64;
-        transform: translateY(-3px);
-        box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-    }
-
-    .big-source-button.active {
-        background-color: #2196F3;
-        color: white;
-        box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.3);
-    }
-
-    .big-source-button i {
-        font-size: 18px;
-    }
-    
-    /* Style pour les boutons de langue */
-    .language-section {
-        margin-bottom: 20px;
-        border-bottom: 1px solid rgba(255,255,255,0.1);
-        padding-bottom: 15px;
-    }
-    
-    .language-buttons {
-        justify-content: center;
-        margin-bottom: 10px;
-    }
-    
-    .language-button {
-        min-width: 180px;
-        font-weight: bold;
-    }
-    
-    .language-button[href*="lang=VF"] {
-        background-color: #3f51b5;
-    }
-    
-    .language-button[href*="lang=VF"]:hover {
-        background-color: #303f9f;
-    }
-    
-    .language-button[href*="lang=VOSTFR"] {
-        background-color: #673ab7;
-    }
-    
-    .language-button[href*="lang=VOSTFR"]:hover {
-        background-color: #512da8;
-    }
-
-    .reload-button {
-        background-color: #4CAF50;
-        margin-top: 10px;
-    }
-
-    .reload-button:hover {
-        background-color: #388E3C;
-    }
-    
-    .download-button {
-        background-color: #FF9800;
-    }
-
-    .download-button:hover {
-        background-color: #F57C00;
-    }
-
-    .no-sources {
-        color: #ddd;
-        font-style: italic;
-        padding: 15px;
-        background-color: rgba(255,255,255,0.1);
-        border-radius: 5px;
-        margin: 10px 0;
-    }
-
-    #custom-vidmoly-player {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: #000;
-        z-index: 5;
+        overflow: hidden;
     }
 
     .player-wrapper iframe {
@@ -342,20 +129,7 @@
         width: 100%;
         height: 100%;
         border: none;
-        z-index: 5; /* Niveau de base */
     }
-
-    /* Styles pour l'overlay anti-pub désactivé pour compatibilité
-    .anti-pub-overlay {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background-color: transparent;
-        z-index: 15;
-        pointer-events: all;
-    } */
 
     /* Message d'aide pour l'utilisateur */
     .player-help-message {
@@ -384,107 +158,16 @@
         font-size: 0.75rem;
         opacity: 0.8;
     }
-
-    .player-overlay {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background-color: rgba(0, 0, 0, 0.5);
-        opacity: 0;
-        transition: opacity 0.3s ease;
-        cursor: pointer;
-        z-index: 10;
-        pointer-events: none; /* Permet les clics à travers l'overlay */
-    }
-
-    .player-wrapper:hover .player-overlay {
-        opacity: 1;
-    }
-
-    .play-pause-btn {
-        width: 80px;
-        height: 80px;
-        border-radius: 50%;
-        background-color: rgba(0, 0, 0, 0.7);
-        color: #fff;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 2rem;
-        transition: transform 0.2s ease;
-        pointer-events: auto; /* Permet les clics sur le bouton */
-    }
-
-    .play-pause-btn:hover {
-        transform: scale(1.1);
-    }
-
-    .player-overlay.playing {
-        opacity: 0;
-    }
-
-    .player-wrapper:hover .player-overlay.playing {
-        opacity: 1;
-    }
-
-    .player-overlay.playing .play-pause-btn i {
-        content: "\f04c"; /* Icône pause */
-    }
 </style>
 {% endblock %}
 
 {% block scripts %}
 {% if current_user.is_authenticated %}
 <script>
-    // Fonction pour le menu déroulant des sources alternatives
-    function toggleDropdown() {
-        var dropdown = document.getElementById("sourceDropdown");
-        if (dropdown.style.display === "none" || dropdown.style.display === "") {
-            dropdown.style.display = "block";
-        } else {
-            dropdown.style.display = "none";
-        }
-    }
-
-    // Fermer le menu déroulant si on clique ailleurs
-    window.onclick = function(event) {
-        if (!event.target.matches(".dropdown button")) {
-            var dropdowns = document.getElementsByClassName("dropdown-content");
-            for (var i = 0; i < dropdowns.length; i++) {
-                var openDropdown = dropdowns[i];
-                if (openDropdown.style.display === "block") {
-                    openDropdown.style.display = "none";
-                }
-            }
-        }
-    };
-
     document.addEventListener('DOMContentLoaded', function() {
         const animeId = {{ anime.anime_id if anime.anime_id else anime.id }};
         const seasonNumber = {{ season.season_number }};
         const episodeNumber = {{ episode.episode_number }};
-        const playerOverlay = document.getElementById('player-overlay');
-        const playPauseBtn = document.querySelector('.play-pause-btn i');
-        const videoFrame = document.getElementById('video-player');
-        const antiPubOverlay = document.getElementById('anti-pub-overlay');
-        const downloadUrl = "{{ download_url }}";
-        const downloadButton = document.getElementById('download-button');
-
-        // Fonction pour recharger le lecteur sans redirection
-        window.reloadPlayer = function() {
-            // Simplement recharger l'iframe sans ouvrir de nouvel onglet
-            if (videoFrame) {
-                videoFrame.src = videoFrame.src;
-            }
-        };
-
-        // Code de bloqueur de redirection désactivé car il crée plus de problèmes qu'il n'en résout
-        // Les sites de streaming ont des protections contre ce type de blocage
 
         // Enregistrer la progression initiale
         fetch('/save-progress', {
@@ -502,73 +185,24 @@
         })
         .then(response => response.json())
         .catch(error => console.error('Erreur lors de la sauvegarde de la progression:', error));
-
-        // Code pour l'overlay anti-pub désactivé
-        /*
-        if (antiPubOverlay) {
-            antiPubOverlay.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                alert("Pour une meilleure expérience, utilisez les contrôles du lecteur. Les clics dans cette zone sont désactivés pour éviter les publicités intrusives.");
-            });
-        }
-        */
-
-        // Gestion du lecteur personnalisé
-        if (playerOverlay) {
-            playerOverlay.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-
-                // Toggle de l'état de lecture
-                playerOverlay.classList.toggle('playing');
-                playPauseBtn.className = playerOverlay.classList.contains('playing') ? 'fas fa-pause' : 'fas fa-play';
-
-                // Gérer le focus sur le lecteur vidéo lui-même
-                try {
-                    videoFrame.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
-                } catch (err) {
-                    console.log('Impossible de contrôler le lecteur via postMessage', err);
-                }
-            });
-        }
-
-        // Code de détection de blocage d'iframe supprimé pour éviter les problèmes
-
-        // Aucun traitement spécial pour Vidmoly - utilisation directe de l'iframe pour toutes les sources
-        
-        // Gestion du bouton de téléchargement direct
-        if (downloadButton) {
-            downloadButton.addEventListener('click', function() {
-                downloadEpisode();
-            });
-        }
     });
 
     // Fonction de téléchargement
     function downloadEpisode() {
         const downloadBtn = document.getElementById('downloadBtn');
-        const topDownloadBtn = document.getElementById('download-button');
         const progressBar = document.getElementById('downloadProgress');
         const progressText = document.getElementById('downloadText');
         const videoFrame = document.getElementById('video-player');
 
         // Vérifier si l'iframe est disponible
         if (!videoFrame || !videoFrame.src) {
-            alert("Aucune source vidéo disponible pour téléchargement. Veuillez sélectionner une autre source.");
+            alert("Aucune source vidéo disponible pour téléchargement.");
             return;
         }
 
-        // Désactiver les boutons et montrer la progression
-        if (downloadBtn) {
-            downloadBtn.disabled = true;
-            downloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Préparation...';
-        }
-        
-        if (topDownloadBtn) {
-            topDownloadBtn.disabled = true;
-            topDownloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Préparation...';
-        }
+        // Désactiver le bouton et montrer la progression
+        downloadBtn.disabled = true;
+        downloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Préparation...';
         progressBar.style.display = 'block';
         progressText.textContent = "Préparation du téléchargement...";
         
@@ -617,18 +251,10 @@
             progressText.style.color = "#F44336";
         })
         .finally(() => {
-            // Réactiver les boutons après un délai
+            // Réactiver le bouton après un délai
             setTimeout(() => {
-                if (downloadBtn) {
-                    downloadBtn.disabled = false;
-                    downloadBtn.innerHTML = '<i class="fas fa-download"></i> Télécharger l\'épisode';
-                }
-                
-                if (topDownloadBtn) {
-                    topDownloadBtn.disabled = false;
-                    topDownloadBtn.innerHTML = '<i class="fas fa-download"></i> Télécharger';
-                }
-                
+                downloadBtn.disabled = false;
+                downloadBtn.innerHTML = '<i class="fas fa-download"></i> Télécharger l\'épisode';
                 progressBar.style.display = 'none';
                 // Ne pas cacher le texte en cas d'erreur
                 if (progressText.style.color !== "#F44336") {
