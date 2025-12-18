@@ -16,39 +16,59 @@
     <!-- Video Player -->
     <div class="video-container">
         <div class="player-wrapper">
-            <!-- Lecteur vidéo -->
-            <iframe id="video-player" 
+            <!-- Lecteur vidéo HLS ou iframe -->
+            <video id="hls-player" 
+                   controls 
+                   style="width: 100%; height: 100%; background: #000; display: none;">
+            </video>
+            
+            <iframe id="iframe-player" 
                     src="{{ download_url }}" 
                     allow="autoplay; fullscreen" 
                     frameborder="0"
                     referrerpolicy="no-referrer"
-                    allowfullscreen>
+                    allowfullscreen
+                    style="width: 100%; height: 100%; border: none;">
             </iframe>
+            
+            <!-- Message de chargement -->
+            <div id="loading-overlay" style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 10;">
+                <div style="text-align: center; color: white;">
+                    <div class="spinner-border" role="status" style="width: 3rem; height: 3rem; margin-bottom: 1rem;">
+                        <span class="visually-hidden">Chargement...</span>
+                    </div>
+                    <p id="loading-text">Chargement de la vidéo...</p>
+                </div>
+            </div>
         </div>
     </div>
 
     <!-- Information sur la source vidéo -->
     <div style="margin-top: 0.5rem; margin-bottom: 1rem; text-align: center; font-size: 0.85rem; color: var(--text-muted);">
-        Source: 
-        {% if 'vidmoly' in download_url %}
-            Vidmoly
-        {% elif 'oneupload' in download_url %}
-            OneUpload
-        {% elif 'sendvid' in download_url %}
-            SendVid
-        {% elif 'mixdrop' in download_url %}
-            MixDrop
-        {% elif 'doodstream' in download_url %}
-            DoodStream
-        {% elif 'streamwish' in download_url %}
-            StreamWish
-        {% elif 'streamtape' in download_url %}
-            StreamTape
-        {% elif 'drive.google.com' in download_url %}
-            Google Drive
-        {% else %}
-            Lecteur externe
-        {% endif %}
+        <span id="source-info">
+            Source: 
+            {% if 'vidmoly' in download_url %}
+                Vidmoly (HLS Segmenté)
+            {% elif 'sibnet' in download_url %}
+                Sibnet (HLS Segmenté)
+            {% elif 'oneupload' in download_url %}
+                OneUpload
+            {% elif 'sendvid' in download_url %}
+                SendVid
+            {% elif 'mixdrop' in download_url %}
+                MixDrop
+            {% elif 'doodstream' in download_url %}
+                DoodStream
+            {% elif 'streamwish' in download_url %}
+                StreamWish
+            {% elif 'streamtape' in download_url %}
+                StreamTape
+            {% elif 'drive.google.com' in download_url %}
+                Google Drive
+            {% else %}
+                Lecteur externe
+            {% endif %}
+        </span>
 
         {% if episode.languages and episode.languages|length > 0 %}
             - Langues disponibles: {{ episode.languages|join(', ') }}
@@ -113,6 +133,14 @@
 {% block styles %}
 <style>
     /* Styles pour le lecteur vidéo */
+    .video-container {
+        position: relative;
+        width: 100%;
+        background: #000;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
     .player-wrapper {
         position: relative;
         width: 100%;
@@ -122,6 +150,7 @@
         overflow: hidden;
     }
 
+    .player-wrapper video,
     .player-wrapper iframe {
         position: absolute;
         top: 0;
@@ -131,138 +160,259 @@
         border: none;
     }
 
-    /* Message d'aide pour l'utilisateur */
-    .player-help-message {
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        width: 100%;
-        background-color: rgba(0, 0, 0, 0.7);
-        color: #fff;
-        padding: 5px 10px;
-        font-size: 0.8rem;
-        text-align: center;
-        z-index: 20;
-        display: flex;
-        flex-direction: column;
-        opacity: 0;
-        transition: opacity 0.3s ease;
+    .spinner-border {
+        border: 0.25em solid rgba(255, 255, 255, 0.2);
+        border-right-color: #fff;
+        border-radius: 50%;
+        animation: spinner-border 0.75s linear infinite;
     }
 
-    .player-wrapper:hover .player-help-message {
-        opacity: 1;
-    }
-
-    .player-help-message span {
-        margin: 2px 0;
-        font-size: 0.75rem;
-        opacity: 0.8;
+    @keyframes spinner-border {
+        to { transform: rotate(360deg); }
     }
 </style>
 {% endblock %}
 
 {% block scripts %}
+<!-- HLS.js pour la lecture des vidéos segmentées -->
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+
 {% if current_user.is_authenticated %}
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const animeId = {{ anime.anime_id if anime.anime_id else anime.id }};
-        const seasonNumber = {{ season.season_number }};
-        const episodeNumber = {{ episode.episode_number }};
+    const animeId = {{ anime.anime_id if anime.anime_id else anime.id }};
+    const seasonNumber = {{ season.season_number }};
+    const episodeNumber = {{ episode.episode_number }};
+    const videoUrl = "{{ download_url }}";
+    
+    let hlsPlayer = null;
+    let currentVideoKey = null;
+    let useSegmentation = false;
 
+    document.addEventListener('DOMContentLoaded', function() {
         // Enregistrer la progression initiale
+        saveProgress(0, false);
+        
+        // Détecter si on doit utiliser la segmentation
+        if (videoUrl.includes('vidmoly') || videoUrl.includes('sibnet')) {
+            useSegmentation = true;
+            initializeSegmentedPlayer();
+        } else {
+            // Utiliser l'iframe classique
+            document.getElementById('iframe-player').style.display = 'block';
+        }
+    });
+
+    // Initialiser le lecteur segmenté
+    async function initializeSegmentedPlayer() {
+        const hlsPlayerElement = document.getElementById('hls-player');
+        const iframePlayer = document.getElementById('iframe-player');
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const loadingText = document.getElementById('loading-text');
+        const sourceInfo = document.getElementById('source-info');
+        
+        // Masquer l'iframe et afficher le chargement
+        iframePlayer.style.display = 'none';
+        loadingOverlay.style.display = 'flex';
+        loadingText.textContent = 'Détection du type de lecteur...';
+        
+        try {
+            // Appeler l'API pour obtenir les infos vidéo
+            const infoResponse = await fetch('/api/video/info', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: videoUrl })
+            });
+            
+            const info = await infoResponse.json();
+            
+            if (!info.success) {
+                throw new Error(info.error || 'Échec de la détection');
+            }
+            
+            currentVideoKey = info.video_key;
+            const playerType = info.player_type.toUpperCase();
+            
+            // Mettre à jour l'info source
+            sourceInfo.textContent = `Source: ${playerType} (HLS Segmenté - ${info.segments || '?'} segments)`;
+            
+            loadingText.textContent = `Chargement ${playerType}...`;
+            
+            // URL du stream
+            const streamUrl = `/api/video/stream/${encodeURIComponent(currentVideoKey)}`;
+            
+            // Initialiser HLS.js
+            if (Hls.isSupported()) {
+                hlsPlayer = new Hls({
+                    debug: false,
+                    enableWorker: true,
+                    lowLatencyMode: false,
+                    backBufferLength: 90
+                });
+                
+                hlsPlayer.loadSource(streamUrl);
+                hlsPlayer.attachMedia(hlsPlayerElement);
+                
+                hlsPlayer.on(Hls.Events.MANIFEST_PARSED, () => {
+                    loadingOverlay.style.display = 'none';
+                    hlsPlayerElement.style.display = 'block';
+                    
+                    // Reprendre à la position sauvegardée
+                    const savedTime = {{ time_position }};
+                    if (savedTime > 0) {
+                        hlsPlayerElement.currentTime = savedTime;
+                    }
+                    
+                    hlsPlayerElement.play().catch(() => {});
+                });
+                
+                hlsPlayer.on(Hls.Events.ERROR, (event, data) => {
+                    if (data.fatal) {
+                        console.error('Erreur HLS fatale:', data);
+                        loadingText.textContent = 'Erreur de chargement. Passage à l\'iframe...';
+                        
+                        // Fallback vers iframe
+                        setTimeout(() => {
+                            hlsPlayerElement.style.display = 'none';
+                            iframePlayer.style.display = 'block';
+                            loadingOverlay.style.display = 'none';
+                        }, 2000);
+                    }
+                });
+                
+                // Sauvegarder la progression périodiquement
+                hlsPlayerElement.addEventListener('timeupdate', () => {
+                    if (hlsPlayerElement.currentTime > 0 && !hlsPlayerElement.paused) {
+                        saveProgressThrottled(hlsPlayerElement.currentTime);
+                    }
+                });
+                
+                hlsPlayerElement.addEventListener('ended', () => {
+                    saveProgress(hlsPlayerElement.duration, true);
+                });
+                
+            } else if (hlsPlayerElement.canPlayType('application/vnd.apple.mpegurl')) {
+                // Support natif HLS (Safari)
+                hlsPlayerElement.src = streamUrl;
+                loadingOverlay.style.display = 'none';
+                hlsPlayerElement.style.display = 'block';
+                
+                const savedTime = {{ time_position }};
+                if (savedTime > 0) {
+                    hlsPlayerElement.currentTime = savedTime;
+                }
+                
+                hlsPlayerElement.play().catch(() => {});
+                
+                hlsPlayerElement.addEventListener('timeupdate', () => {
+                    if (hlsPlayerElement.currentTime > 0 && !hlsPlayerElement.paused) {
+                        saveProgressThrottled(hlsPlayerElement.currentTime);
+                    }
+                });
+                
+                hlsPlayerElement.addEventListener('ended', () => {
+                    saveProgress(hlsPlayerElement.duration, true);
+                });
+            } else {
+                throw new Error('HLS non supporté');
+            }
+            
+        } catch (error) {
+            console.error('Erreur initialisation lecteur segmenté:', error);
+            
+            // Fallback vers iframe
+            loadingText.textContent = 'Chargement avec lecteur standard...';
+            setTimeout(() => {
+                iframePlayer.style.display = 'block';
+                loadingOverlay.style.display = 'none';
+            }, 1500);
+        }
+    }
+
+    // Sauvegarder la progression (throttled)
+    let saveProgressTimeout = null;
+    function saveProgressThrottled(currentTime) {
+        if (saveProgressTimeout) return;
+        
+        saveProgressTimeout = setTimeout(() => {
+            saveProgress(currentTime, false);
+            saveProgressTimeout = null;
+        }, 5000); // Sauvegarder toutes les 5 secondes
+    }
+
+    // Fonction de sauvegarde de progression
+    function saveProgress(currentTime, completed) {
         fetch('/save-progress', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: new URLSearchParams({
                 'anime_id': animeId,
                 'season_number': seasonNumber,
                 'episode_number': episodeNumber,
-                'time_position': 0,
-                'completed': false
+                'time_position': currentTime,
+                'completed': completed
             })
-        })
-        .then(response => response.json())
-        .catch(error => console.error('Erreur lors de la sauvegarde de la progression:', error));
-    });
+        }).catch(error => console.error('Erreur sauvegarde progression:', error));
+    }
 
     // Fonction de téléchargement
-    function downloadEpisode() {
+    async function downloadEpisode() {
         const downloadBtn = document.getElementById('downloadBtn');
         const progressBar = document.getElementById('downloadProgress');
         const progressText = document.getElementById('downloadText');
-        const videoFrame = document.getElementById('video-player');
 
-        // Vérifier si l'iframe est disponible
-        if (!videoFrame || !videoFrame.src) {
-            alert("Aucune source vidéo disponible pour téléchargement.");
-            return;
-        }
-
-        // Désactiver le bouton et montrer la progression
         downloadBtn.disabled = true;
         downloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Préparation...';
         progressBar.style.display = 'block';
         progressText.textContent = "Préparation du téléchargement...";
         
-        // Récupérer l'URL source de l'iframe
-        const videoUrl = videoFrame.src;
-        
-        // Envoyer cette URL au serveur pour téléchargement direct
-        fetch('/api/download-direct', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ 
-                url: videoUrl,
-                anime_id: {{ anime.anime_id if anime.anime_id else anime.id }}, 
-                season_num: {{ season.season_number }}, 
-                episode_num: {{ episode.episode_number }}
-            })
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Échec du téléchargement');
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.download_url) {
-                // Créer un lien pour déclencher le téléchargement
-                const downloadLink = document.createElement('a');
-                downloadLink.style.display = 'none';
-                downloadLink.href = data.download_url;
-                downloadLink.setAttribute('download', `{{ anime.title }} - S{{ season.season_number }}E{{ episode.episode_number }}.mp4`);
-                document.body.appendChild(downloadLink);
-                downloadLink.click();
-                document.body.removeChild(downloadLink);
+        try {
+            if (useSegmentation && currentVideoKey) {
+                // Téléchargement via système de segmentation
+                const downloadUrl = `/api/video/download/${encodeURIComponent(currentVideoKey)}`;
                 
                 progressText.textContent = "Téléchargement en cours...";
                 progressText.style.color = "#4CAF50";
+                
+                // Créer un lien de téléchargement
+                const a = document.createElement('a');
+                a.href = downloadUrl;
+                a.download = `{{ anime.title }} - S{{ season.season_number }}E{{ episode.episode_number }}.mp4`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                
             } else {
-                throw new Error(data.error || 'Échec du téléchargement');
+                // Téléchargement classique (iframe)
+                progressText.textContent = "Ouverture de la source...";
+                progressText.style.color = "#4CAF50";
+                
+                window.open(videoUrl, '_blank');
             }
-        })
-        .catch(error => {
-            console.error('Erreur de téléchargement:', error);
-            progressText.textContent = "Échec du téléchargement. Essayez avec une autre source.";
+            
+        } catch (error) {
+            console.error('Erreur téléchargement:', error);
+            progressText.textContent = "Échec du téléchargement.";
             progressText.style.color = "#F44336";
-        })
-        .finally(() => {
-            // Réactiver le bouton après un délai
+        } finally {
             setTimeout(() => {
                 downloadBtn.disabled = false;
                 downloadBtn.innerHTML = '<i class="fas fa-download"></i> Télécharger l\'épisode';
-                progressBar.style.display = 'none';
-                // Ne pas cacher le texte en cas d'erreur
                 if (progressText.style.color !== "#F44336") {
-                    progressText.style.display = 'none';
+                    progressBar.style.display = 'none';
                 }
             }, 3000);
-        });
+        }
     }
+
+    // Sauvegarder avant de quitter
+    window.addEventListener('beforeunload', () => {
+        if (useSegmentation) {
+            const hlsPlayerElement = document.getElementById('hls-player');
+            if (hlsPlayerElement.currentTime > 0) {
+                saveProgress(hlsPlayerElement.currentTime, false);
+            }
+        }
+    });
 </script>
 {% endif %}
 {% endblock %}
