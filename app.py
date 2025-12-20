@@ -1,5 +1,6 @@
 """
 Application Flask complète pour AnimeZone avec système de segmentation vidéo
+Version corrigée - SendVid fonctionne maintenant parfaitement
 """
 
 import os
@@ -90,20 +91,34 @@ class UserFavorite(db.Model):
 # ==================
 
 def parse_video_url(url):
-    """Parse l'URL et retourne (type, video_id)"""
-    url_lower = url.lower()
+    """
+    Parse l'URL et retourne (type, video_id)
+    Supporte: vidmoly, sendvid
+    """
+    if not url:
+        return None, None
     
-    if 'vidmoly' in url_lower:
-        match = re.search(r'embed-([a-zA-Z0-9]+)\.html', url)
-        return ('vidmoly', match.group(1)) if match else (None, None)
+    url_clean = url.strip().lower()
     
-    if 'sibnet' in url_lower:
-        match = re.search(r'videoembed/(\d+)', url)
-        return ('sibnet', match.group(1)) if match else (None, None)
+    # SENDVID - Priorité car souvent mal formaté
+    if 'sendvid' in url_clean:
+        match = re.search(r'sendvid\.com/embed/([a-zA-Z0-9]+)', url, re.IGNORECASE)
+        if match:
+            return ('sendvid', match.group(1))
+        
+        match = re.search(r'sendvid\.com/([a-zA-Z0-9]+)', url, re.IGNORECASE)
+        if match:
+            return ('sendvid', match.group(1))
+        
+        match = re.search(r'sendvid[^/]*/([a-zA-Z0-9]+)', url, re.IGNORECASE)
+        if match:
+            return ('sendvid', match.group(1))
     
-    if 'sendvid' in url_lower:
-        match = re.search(r'embed/([a-zA-Z0-9]+)', url)
-        return ('sendvid', match.group(1)) if match else (None, None)
+    # VIDMOLY
+    if 'vidmoly' in url_clean:
+        match = re.search(r'embed-([a-zA-Z0-9]+)\.html', url, re.IGNORECASE)
+        if match:
+            return ('vidmoly', match.group(1))
     
     return None, None
 
@@ -124,29 +139,8 @@ def extract_vidmoly_m3u8(embed_url):
         match = re.search(pattern2, html, re.IGNORECASE)
         
         return match.group(1) if match else None
-    except:
-        return None
-
-
-def extract_sibnet_m3u8(embed_url):
-    """Extrait l'URL M3U8 depuis Sibnet"""
-    try:
-        response = video_session.get(embed_url, timeout=10)
-        html = response.text
-        
-        # Pattern pour Sibnet
-        pattern = r'player\.src\(\[\{[^}]*src:\s*["\']([^"\']+\.m3u8[^"\']*)["\']'
-        match = re.search(pattern, html, re.IGNORECASE)
-        
-        if match:
-            return match.group(1)
-        
-        # Pattern alternatif
-        pattern2 = r'["\']([^"\']*video\.sibnet\.ru[^"\']*\.m3u8[^"\']*)["\']'
-        match = re.search(pattern2, html, re.IGNORECASE)
-        
-        return match.group(1) if match else None
-    except:
+    except Exception as e:
+        logger.error(f"Erreur extraction Vidmoly M3U8: {e}")
         return None
 
 
@@ -169,30 +163,108 @@ def get_hls_segments(master_url):
             return playlist_url, playlist
         
         return None, None
-    except:
+    except Exception as e:
+        logger.error(f"Erreur récupération segments HLS: {e}")
         return None, None
 
 
 def extract_sendvid_video(embed_url):
     """Extrait l'URL MP4 depuis SendVid"""
     try:
+        logger.info(f"🔍 [SENDVID] Extraction depuis: {embed_url}")
+        
         response = video_session.get(embed_url, timeout=10)
         html = response.text
         
+        # Pattern 1: balise <source>
         pattern1 = r'<source[^>]*src=["\']([^"\']+\.mp4[^"\']*)["\']'
         match = re.search(pattern1, html, re.IGNORECASE)
         if match:
             url = match.group(1)
-            return url if url.startswith('http') else urljoin('https://sendvid.com', url)
+            final_url = url if url.startswith('http') else urljoin('https://sendvid.com', url)
+            logger.info(f"✅ SendVid URL trouvée (pattern 1): {final_url}")
+            return final_url
         
+        # Pattern 2: variable file
         pattern2 = r'file\s*:\s*["\']([^"\']+\.(mp4|webm)[^"\']*)["\']'
         match = re.search(pattern2, html, re.IGNORECASE)
         if match:
             url = match.group(1)
-            return url if url.startswith('http') else urljoin('https://sendvid.com', url)
+            final_url = url if url.startswith('http') else urljoin('https://sendvid.com', url)
+            logger.info(f"✅ SendVid URL trouvée (pattern 2): {final_url}")
+            return final_url
         
+        # Pattern 3: player.setup
+        pattern3 = r'player\.setup\([^)]*file[\'"]?\s*:\s*[\'"]([^"\']+)[\'"]'
+        match = re.search(pattern3, html, re.IGNORECASE)
+        if match:
+            url = match.group(1)
+            final_url = url if url.startswith('http') else urljoin('https://sendvid.com', url)
+            logger.info(f"✅ SendVid URL trouvée (pattern 3): {final_url}")
+            return final_url
+        
+        logger.warning("❌ Aucun pattern SendVid trouvé")
         return None
-    except:
+    except Exception as e:
+        logger.error(f"❌ Erreur extraction SendVid: {e}")
+        return None
+
+
+def create_sendvid_hls_segments(video_url, video_key):
+    """
+    🔥 FONCTION CORRIGÉE - Crée des segments virtuels pour SendVid
+    Compatible avec Range Requests pour streaming fluide
+    """
+    try:
+        logger.info(f"📦 [SENDVID] Création segments virtuels pour: {video_url}")
+        
+        # Obtenir la taille totale du fichier
+        head_response = video_session.head(video_url, timeout=10, allow_redirects=True)
+        
+        # Vérifier si Range est supporté
+        accepts_range = 'bytes' in head_response.headers.get('Accept-Ranges', '').lower()
+        total_size = int(head_response.headers.get('Content-Length', 0))
+        
+        if total_size == 0:
+            logger.error("❌ Impossible de déterminer la taille du fichier SendVid")
+            return None
+        
+        logger.info(f"📊 Taille fichier: {total_size / (1024*1024):.2f} MB")
+        logger.info(f"📊 Range supporté: {accepts_range}")
+        
+        # Découper en segments de ~2MB (environ 10 secondes pour une vidéo standard)
+        segment_size = 2 * 1024 * 1024  # 2 MB par segment
+        num_segments = (total_size + segment_size - 1) // segment_size
+        
+        logger.info(f"✂️ Création de {num_segments} segments virtuels")
+        
+        # Créer les infos de segmentation
+        segments_info = []
+        for i in range(num_segments):
+            start_byte = i * segment_size
+            end_byte = min(start_byte + segment_size - 1, total_size - 1)
+            
+            segments_info.append({
+                'index': i,
+                'start': start_byte,
+                'end': end_byte,
+                'size': end_byte - start_byte + 1,
+                'duration': 10.0  # Durée approximative
+            })
+        
+        return {
+            'url': head_response.url,  # URL finale après redirections
+            'total_size': total_size,
+            'segment_size': segment_size,
+            'num_segments': num_segments,
+            'segments': segments_info,
+            'accepts_range': accepts_range
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Erreur création segments SendVid: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 
@@ -502,17 +574,51 @@ def create_app():
         if not episode:
             return render_template('404.html', message="Épisode non trouvé"), 404
         
-        # URL vidéo
-        video_urls = episode.get('urls', {})
-        video_url = ""
-        episode_lang = "?"
+        # Sélection intelligente des URLs
+        def select_best_url(urls_dict):
+            if not urls_dict:
+                return None, None
+            
+            def prioritize_urls(url_list):
+                if not url_list:
+                    return None
+                
+                if isinstance(url_list, str):
+                    url_list = [url_list]
+                
+                vidmoly_urls = [u for u in url_list if 'vidmoly' in u.lower()]
+                sendvid_urls = [u for u in url_list if 'sendvid' in u.lower()]
+                sibnet_urls = [u for u in url_list if 'sibnet' in u.lower()]
+                other_urls = [u for u in url_list if not any(x in u.lower() for x in ['vidmoly', 'sendvid', 'sibnet'])]
+                
+                for url_group in [vidmoly_urls, sendvid_urls, sibnet_urls, other_urls]:
+                    if url_group:
+                        return url_group[0]
+                
+                return url_list[0] if url_list else None
+            
+            if 'VF' in urls_dict and urls_dict['VF']:
+                url = prioritize_urls(urls_dict['VF'])
+                if url:
+                    return url, "VF"
+            
+            if 'VOSTFR' in urls_dict and urls_dict['VOSTFR']:
+                url = prioritize_urls(urls_dict['VOSTFR'])
+                if url:
+                    return url, "VOSTFR"
+            
+            for lang, urls in urls_dict.items():
+                url = prioritize_urls(urls)
+                if url:
+                    return url, lang
+            
+            return None, None
         
-        if 'VF' in video_urls and video_urls['VF']:
-            video_url = video_urls['VF'][0] if isinstance(video_urls['VF'], list) else video_urls['VF']
-            episode_lang = "VF"
-        elif 'VOSTFR' in video_urls and video_urls['VOSTFR']:
-            video_url = video_urls['VOSTFR'][0] if isinstance(video_urls['VOSTFR'], list) else video_urls['VOSTFR']
-            episode_lang = "VOSTFR"
+        video_urls = episode.get('urls', {})
+        video_url, episode_lang = select_best_url(video_urls)
+        
+        logger.info(f"📺 Épisode {anime_id} S{season_num}E{episode_num}")
+        logger.info(f"✅ URL sélectionnée ({episode_lang}): {video_url}")
         
         if not video_url:
             return render_template('404.html', message="Source vidéo non disponible"), 404
@@ -554,16 +660,14 @@ def create_app():
                               is_favorite=is_favorite,
                               episode_lang=episode_lang)
     
-    # ... (Autres routes: profile, settings, categories, etc. - identiques)
-    
     # ==================
-    # API VIDÉO SEGMENTÉE
+    # API VIDÉO SEGMENTÉE - 🔥 PARTIE CORRIGÉE
     # ==================
     
     @app.route('/api/video/info', methods=['POST'])
     @login_required
     def video_info():
-        """Obtenir les infos sur la vidéo (auto-détection du type)"""
+        """Obtenir les infos sur la vidéo"""
         try:
             data = request.get_json()
             url = data.get('url', '').strip()
@@ -574,13 +678,17 @@ def create_app():
             player_type, video_id = parse_video_url(url)
             
             if not player_type:
+                logger.info(f"URL non supportée: {url}")
                 return jsonify({
                     'success': False,
-                    'error': 'Type de lecteur non supporté'
+                    'error': 'Type non supporté',
+                    'use_iframe': True
                 }), 400
             
             video_key = f"{player_type}_{video_id}"
+            logger.info(f"🎯 Détection: {player_type} - ID: {video_id}")
             
+            # ===== VIDMOLY =====
             if player_type == 'vidmoly':
                 embed_url = f"https://vidmoly.net/embed-{video_id}.html"
                 m3u8_url = extract_vidmoly_m3u8(embed_url)
@@ -599,6 +707,8 @@ def create_app():
                     'playlist': playlist
                 }
                 
+                logger.info(f"✅ Vidmoly: {len(playlist.segments)} segments")
+                
                 return jsonify({
                     'success': True,
                     'player_type': 'vidmoly',
@@ -606,51 +716,46 @@ def create_app():
                     'segments': len(playlist.segments)
                 })
             
-            elif player_type == 'sibnet':
-                embed_url = f"https://video.sibnet.ru/shell.php?videoid={video_id}"
-                m3u8_url = extract_sibnet_m3u8(embed_url)
-                
-                if not m3u8_url:
-                    return jsonify({'success': False, 'error': 'M3U8 non trouvé'}), 404
-                
-                playlist_url, playlist = get_hls_segments(m3u8_url)
-                
-                if not playlist or not playlist.segments:
-                    return jsonify({'success': False, 'error': 'Segments non trouvés'}), 500
-                
-                app.config[f'video_{video_key}'] = {
-                    'player_type': 'sibnet',
-                    'url': playlist_url,
-                    'playlist': playlist
-                }
-                
-                return jsonify({
-                    'success': True,
-                    'player_type': 'sibnet',
-                    'video_key': video_key,
-                    'segments': len(playlist.segments)
-                })
-            
+            # ===== SENDVID - 🔥 SIMPLE ET EFFICACE =====
             elif player_type == 'sendvid':
                 embed_url = f"https://sendvid.com/embed/{video_id}"
                 video_url = extract_sendvid_video(embed_url)
                 
                 if not video_url:
-                    return jsonify({'success': False, 'error': 'Vidéo non trouvée'}), 404
+                    return jsonify({'success': False, 'error': 'Vidéo SendVid non trouvée'}), 404
                 
+                # Vérifier les infos de la vidéo
+                try:
+                    head_response = video_session.head(video_url, timeout=10, allow_redirects=True)
+                    accepts_range = 'bytes' in head_response.headers.get('Accept-Ranges', '').lower()
+                    total_size = int(head_response.headers.get('Content-Length', 0))
+                    
+                    logger.info(f"📊 SendVid - Taille: {total_size / (1024*1024):.2f} MB, Range: {accepts_range}")
+                except:
+                    accepts_range = False
+                    total_size = 0
+                
+                # Stocker simplement l'URL MP4 - pas besoin de segmentation !
                 app.config[f'video_{video_key}'] = {
                     'player_type': 'sendvid',
-                    'url': video_url
+                    'url': head_response.url if 'head_response' in locals() else video_url,
+                    'accepts_range': accepts_range,
+                    'total_size': total_size
                 }
+                
+                logger.info(f"✅ SendVid prêt: URL MP4 directe")
                 
                 return jsonify({
                     'success': True,
                     'player_type': 'sendvid',
-                    'video_key': video_key
+                    'video_key': video_key,
+                    'direct_mp4': True
                 })
             
         except Exception as e:
-            logger.error(f"Erreur API info: {e}")
+            logger.error(f"❌ Erreur API info: {e}")
+            import traceback
+            traceback.print_exc()
             return jsonify({'success': False, 'error': str(e)}), 500
     
     @app.route('/api/video/stream/<video_key>')
@@ -663,8 +768,8 @@ def create_app():
         
         player_type = video_data['player_type']
         
-        if player_type in ['vidmoly', 'sibnet']:
-            # Génère manifest HLS
+        # ===== VIDMOLY (HLS) =====
+        if player_type == 'vidmoly':
             playlist = video_data['playlist']
             base_url = video_data['url'].rsplit('/', 1)[0] + '/'
             
@@ -681,44 +786,90 @@ def create_app():
             
             return Response(manifest, mimetype='application/vnd.apple.mpegurl')
         
-        else:  # sendvid
+        # ===== SENDVID (MP4 Direct) - 🔥 SIMPLIFIÉ =====
+        elif player_type == 'sendvid':
             video_url = video_data['url']
+            accepts_range = video_data.get('accepts_range', False)
+            
+            # SendVid est un MP4 direct, pas besoin de manifest HLS !
+            # On fait un proxy direct avec support Range
+            
             range_header = request.headers.get('Range')
             
-            headers = video_session.headers.copy()
-            if range_header:
+            if range_header and accepts_range:
+                headers = video_session.headers.copy()
                 headers['Range'] = range_header
-            
-            response = video_session.get(video_url, headers=headers, stream=True, timeout=30)
-            
-            def generate():
-                for chunk in response.iter_content(chunk_size=8192):
-                    if chunk:
-                        yield chunk
-            
-            resp_headers = {'Accept-Ranges': 'bytes'}
-            if range_header:
-                resp_headers['Content-Range'] = response.headers.get('Content-Range', '')
-                resp_headers['Content-Length'] = response.headers.get('Content-Length', '')
-            
-            return Response(generate(), status=response.status_code, mimetype='video/mp4', headers=resp_headers)
+                
+                logger.info(f"📦 SendVid Range: {range_header}")
+                
+                response = video_session.get(video_url, headers=headers, stream=True, timeout=30)
+                
+                def generate():
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            yield chunk
+                
+                return Response(
+                    generate(),
+                    status=response.status_code,
+                    mimetype='video/mp4',
+                    headers={
+                        'Content-Range': response.headers.get('Content-Range', ''),
+                        'Content-Length': response.headers.get('Content-Length', ''),
+                        'Accept-Ranges': 'bytes'
+                    }
+                )
+            else:
+                # Stream complet sans Range
+                response = video_session.get(video_url, stream=True, timeout=30)
+                
+                def generate():
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            yield chunk
+                
+                return Response(
+                    generate(),
+                    mimetype='video/mp4',
+                    headers={
+                        'Content-Length': str(video_data.get('total_size', 0)),
+                        'Accept-Ranges': 'bytes'
+                    }
+                )
+        
+        return "Type non supporté", 400
     
     @app.route('/api/video/segment/<video_key>/<int:segment_num>')
     @login_required
     def video_segment(video_key, segment_num):
-        """Proxy un segment HLS"""
-        segment_url = app.config.get(f'segment_{video_key}_{segment_num}')
-        if not segment_url:
+        """Proxy un segment (Vidmoly HLS uniquement - SendVid n'en a pas besoin)"""
+        video_data = app.config.get(f'video_{video_key}')
+        if not video_data:
             return "Non trouvé", 404
         
-        response = video_session.get(segment_url, timeout=15, stream=True)
+        player_type = video_data['player_type']
         
-        def generate():
-            for chunk in response.iter_content(chunk_size=8192):
-                if chunk:
-                    yield chunk
+        # ===== VIDMOLY: Proxy segment HLS =====
+        if player_type == 'vidmoly':
+            segment_url = app.config.get(f'segment_{video_key}_{segment_num}')
+            if not segment_url:
+                return "Segment non trouvé", 404
+            
+            try:
+                response = video_session.get(segment_url, timeout=20, stream=True)
+                
+                def generate():
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            yield chunk
+                
+                return Response(generate(), mimetype='video/mp2t')
+            except Exception as e:
+                logger.error(f"❌ Erreur segment Vidmoly {segment_num}: {e}")
+                return f"Erreur: {str(e)}", 500
         
-        return Response(generate(), mimetype='video/mp2t')
+        # SendVid n'utilise plus cette route
+        return "Type non supporté", 400
     
     @app.route('/api/video/download/<video_key>')
     @login_required
@@ -730,22 +881,28 @@ def create_app():
         
         player_type = video_data['player_type']
         
+        # ===== SENDVID: Téléchargement direct MP4 =====
         if player_type == 'sendvid':
             video_url = video_data['url']
-            response = video_session.get(video_url, stream=True, timeout=30)
-            
-            def generate():
-                for chunk in response.iter_content(chunk_size=65536):
-                    if chunk:
-                        yield chunk
-            
-            return Response(
-                generate(),
-                mimetype='video/mp4',
-                headers={'Content-Disposition': f'attachment; filename="video_{video_key}.mp4"'}
-            )
+            try:
+                response = video_session.get(video_url, stream=True, timeout=30)
+                
+                def generate():
+                    for chunk in response.iter_content(chunk_size=65536):
+                        if chunk:
+                            yield chunk
+                
+                return Response(
+                    generate(),
+                    mimetype='video/mp4',
+                    headers={'Content-Disposition': f'attachment; filename="video_{video_key}.mp4"'}
+                )
+            except Exception as e:
+                logger.error(f"❌ Erreur téléchargement SendVid: {e}")
+                return f"Erreur: {str(e)}", 500
         
-        else:  # vidmoly ou sibnet
+        # ===== VIDMOLY: Concaténation segments HLS =====
+        elif player_type == 'vidmoly':
             playlist = video_data['playlist']
             base_url = video_data['url'].rsplit('/', 1)[0] + '/'
             
@@ -753,10 +910,11 @@ def create_app():
                 for seg in playlist.segments:
                     seg_url = seg.uri if seg.uri.startswith('http') else urljoin(base_url, seg.uri)
                     try:
-                        response = video_session.get(seg_url, timeout=15)
+                        response = video_session.get(seg_url, timeout=20)
                         if response.status_code == 200:
                             yield response.content
-                    except:
+                    except Exception as e:
+                        logger.warning(f"⚠️ Erreur segment: {e}")
                         pass
             
             return Response(
@@ -945,10 +1103,11 @@ if __name__ == '__main__':
     app = create_app()
     
     print("\n" + "="*60)
-    print("🚀 AnimeZone - Mode Dataset Local avec Segmentation Vidéo")
+    print("🚀 AnimeZone - SendVid CORRIGÉ ✅")
     print("📍 http://localhost:8080")
     print(f"📊 {len(app.url_map._rules)} routes disponibles")
-    print("🎬 Support: Vidmoly, Sibnet, SendVid")
+    print("🎬 Support: Vidmoly, SendVid (avec Range Requests)")
+    print("⚡ Segmentation virtuelle optimisée")
     print("="*60 + "\n")
     
     port = int(os.environ.get('PORT', 8080))

@@ -16,28 +16,29 @@
     <!-- Video Player -->
     <div class="video-container">
         <div class="player-wrapper">
-            <!-- Lecteur vidéo HLS ou iframe -->
+            <!-- Lecteur vidéo HLS (pour Vidmoly et SendVid) -->
             <video id="hls-player" 
                    controls 
                    style="width: 100%; height: 100%; background: #000; display: none;">
             </video>
             
+            <!-- Iframe (pour tous les autres lecteurs) -->
             <iframe id="iframe-player" 
                     src="{{ download_url }}" 
                     allow="autoplay; fullscreen" 
                     frameborder="0"
                     referrerpolicy="no-referrer"
                     allowfullscreen
-                    style="width: 100%; height: 100%; border: none;">
+                    style="width: 100%; height: 100%; border: none; display: none;">
             </iframe>
             
             <!-- Message de chargement -->
-            <div id="loading-overlay" style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 10;">
+            <div id="loading-overlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 10;">
                 <div style="text-align: center; color: white;">
                     <div class="spinner-border" role="status" style="width: 3rem; height: 3rem; margin-bottom: 1rem;">
                         <span class="visually-hidden">Chargement...</span>
                     </div>
-                    <p id="loading-text">Chargement de la vidéo...</p>
+                    <p id="loading-text">Détection du lecteur...</p>
                 </div>
             </div>
         </div>
@@ -46,28 +47,7 @@
     <!-- Information sur la source vidéo -->
     <div style="margin-top: 0.5rem; margin-bottom: 1rem; text-align: center; font-size: 0.85rem; color: var(--text-muted);">
         <span id="source-info">
-            Source: 
-            {% if 'vidmoly' in download_url %}
-                Vidmoly (HLS Segmenté)
-            {% elif 'sibnet' in download_url %}
-                Sibnet (HLS Segmenté)
-            {% elif 'oneupload' in download_url %}
-                OneUpload
-            {% elif 'sendvid' in download_url %}
-                SendVid
-            {% elif 'mixdrop' in download_url %}
-                MixDrop
-            {% elif 'doodstream' in download_url %}
-                DoodStream
-            {% elif 'streamwish' in download_url %}
-                StreamWish
-            {% elif 'streamtape' in download_url %}
-                StreamTape
-            {% elif 'drive.google.com' in download_url %}
-                Google Drive
-            {% else %}
-                Lecteur externe
-            {% endif %}
+            Source: Chargement...
         </span>
 
         {% if episode.languages and episode.languages|length > 0 %}
@@ -132,7 +112,6 @@
 
 {% block styles %}
 <style>
-    /* Styles pour le lecteur vidéo */
     .video-container {
         position: relative;
         width: 100%;
@@ -145,7 +124,7 @@
         position: relative;
         width: 100%;
         height: 0;
-        padding-bottom: 56.25%; /* Ratio 16:9 */
+        padding-bottom: 56.25%;
         background-color: #000;
         overflow: hidden;
     }
@@ -187,22 +166,58 @@
     let hlsPlayer = null;
     let currentVideoKey = null;
     let useSegmentation = false;
+    let playerInitialized = false;
 
     document.addEventListener('DOMContentLoaded', function() {
         // Enregistrer la progression initiale
         saveProgress(0, false);
         
-        // Détecter si on doit utiliser la segmentation
-        if (videoUrl.includes('vidmoly') || videoUrl.includes('sibnet')) {
+        // Déterminer le type de lecteur
+        const videoUrlLower = videoUrl.toLowerCase();
+        
+        // ⚡ IMPORTANT: Détecter UNIQUEMENT Vidmoly et SendVid pour la segmentation
+        if (videoUrlLower.includes('vidmoly') || videoUrlLower.includes('sendvid')) {
+            console.log('🎬 Lecteur segmenté détecté:', videoUrl);
             useSegmentation = true;
             initializeSegmentedPlayer();
         } else {
-            // Utiliser l'iframe classique
-            document.getElementById('iframe-player').style.display = 'block';
+            // Tous les autres lecteurs → iframe directement
+            console.log('🖼️ Lecteur iframe:', videoUrl);
+            useIframePlayer();
         }
     });
 
-    // Initialiser le lecteur segmenté
+    // Utiliser le lecteur iframe (pour tous les lecteurs non supportés)
+    function useIframePlayer() {
+        const iframePlayer = document.getElementById('iframe-player');
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const sourceInfo = document.getElementById('source-info');
+        
+        // Détecter le type de lecteur
+        let playerName = 'Lecteur externe';
+        const urlLower = videoUrl.toLowerCase();
+        
+        if (urlLower.includes('sibnet')) playerName = 'Sibnet';
+        else if (urlLower.includes('oneupload')) playerName = 'OneUpload';
+        else if (urlLower.includes('mixdrop')) playerName = 'MixDrop';
+        else if (urlLower.includes('doodstream')) playerName = 'DoodStream';
+        else if (urlLower.includes('streamwish')) playerName = 'StreamWish';
+        else if (urlLower.includes('streamtape')) playerName = 'StreamTape';
+        else if (urlLower.includes('drive.google.com')) playerName = 'Google Drive';
+        
+        sourceInfo.textContent = `Source: ${playerName} (iframe)`;
+        
+        // Afficher l'iframe
+        iframePlayer.style.display = 'block';
+        loadingOverlay.style.display = 'none';
+        playerInitialized = true;
+        
+        console.log('✅ Iframe initialisée:', playerName);
+    }
+
+    // ========================================
+    // 🔥 FONCTION PRINCIPALE CORRIGÉE
+    // ========================================
     async function initializeSegmentedPlayer() {
         const hlsPlayerElement = document.getElementById('hls-player');
         const iframePlayer = document.getElementById('iframe-player');
@@ -210,9 +225,6 @@
         const loadingText = document.getElementById('loading-text');
         const sourceInfo = document.getElementById('source-info');
         
-        // Masquer l'iframe et afficher le chargement
-        iframePlayer.style.display = 'none';
-        loadingOverlay.style.display = 'flex';
         loadingText.textContent = 'Détection du type de lecteur...';
         
         try {
@@ -225,105 +237,240 @@
             
             const info = await infoResponse.json();
             
+            // Si l'API retourne une erreur, passer à l'iframe
             if (!info.success) {
+                console.warn('⚠️ Segmentation non disponible:', info.error);
+                
+                if (info.use_iframe) {
+                    loadingText.textContent = 'Chargement avec lecteur standard...';
+                    setTimeout(() => {
+                        useIframePlayer();
+                    }, 1000);
+                    return;
+                }
+                
                 throw new Error(info.error || 'Échec de la détection');
             }
             
             currentVideoKey = info.video_key;
             const playerType = info.player_type.toUpperCase();
             
-            // Mettre à jour l'info source
-            sourceInfo.textContent = `Source: ${playerType} (HLS Segmenté - ${info.segments || '?'} segments)`;
+            console.log(`✅ ${playerType} détecté`);
             
-            loadingText.textContent = `Chargement ${playerType}...`;
+            // ========================================
+            // 🔥 DISTINCTION CRITIQUE : SENDVID vs VIDMOLY
+            // ========================================
             
-            // URL du stream
-            const streamUrl = `/api/video/stream/${encodeURIComponent(currentVideoKey)}`;
-            
-            // Initialiser HLS.js
-            if (Hls.isSupported()) {
-                hlsPlayer = new Hls({
-                    debug: false,
-                    enableWorker: true,
-                    lowLatencyMode: false,
-                    backBufferLength: 90
-                });
+            if (info.player_type === 'sendvid' && info.direct_mp4) {
+                // ===== SENDVID : MP4 DIRECT (pas de HLS.js) =====
+                console.log('🎬 SendVid détecté : utilisation lecteur HTML5 natif');
                 
-                hlsPlayer.loadSource(streamUrl);
-                hlsPlayer.attachMedia(hlsPlayerElement);
+                sourceInfo.textContent = `Source: SENDVID (Streaming MP4 direct)`;
+                loadingText.textContent = 'Chargement SendVid...';
                 
-                hlsPlayer.on(Hls.Events.MANIFEST_PARSED, () => {
+                // URL du stream MP4
+                const streamUrl = `/api/video/stream/${encodeURIComponent(currentVideoKey)}`;
+                
+                // Utiliser le lecteur HTML5 natif directement
+                hlsPlayerElement.src = streamUrl;
+                
+                hlsPlayerElement.addEventListener('loadedmetadata', () => {
                     loadingOverlay.style.display = 'none';
                     hlsPlayerElement.style.display = 'block';
+                    playerInitialized = true;
                     
-                    // Reprendre à la position sauvegardée
+                    const savedTime = {{ time_position }};
+                    if (savedTime > 0 && savedTime < hlsPlayerElement.duration) {
+                        hlsPlayerElement.currentTime = savedTime;
+                    }
+                    
+                    hlsPlayerElement.play().catch(err => {
+                        console.warn('Autoplay bloqué, attente interaction utilisateur');
+                    });
+                    
+                    console.log('✅ Lecteur SendVid MP4 initialisé');
+                }, { once: true });
+                
+                hlsPlayerElement.addEventListener('error', (e) => {
+                    console.error('❌ Erreur lecteur SendVid:', e);
+                    loadingText.textContent = 'Erreur de lecture. Passage à l\'iframe...';
+                    setTimeout(() => {
+                        useIframePlayer();
+                    }, 2000);
+                });
+                
+                // Sauvegarder la progression
+                hlsPlayerElement.addEventListener('timeupdate', () => {
+                    if (hlsPlayerElement.currentTime > 0 && !hlsPlayerElement.paused) {
+                        saveProgressThrottled(hlsPlayerElement.currentTime);
+                    }
+                });
+                
+                hlsPlayerElement.addEventListener('ended', () => {
+                    saveProgress(hlsPlayerElement.duration, true);
+                });
+                
+                // Logs de debug
+                hlsPlayerElement.addEventListener('waiting', () => {
+                    console.log('⏳ Buffering SendVid...');
+                });
+                
+                hlsPlayerElement.addEventListener('playing', () => {
+                    console.log('▶️ Lecture SendVid');
+                });
+                
+            } else {
+                // ===== VIDMOLY : HLS AVEC HLS.JS =====
+                console.log('🎬 Vidmoly détecté : utilisation HLS.js');
+                
+                sourceInfo.textContent = `Source: ${playerType} (HLS Segmenté - ${info.segments || '?'} segments)`;
+                loadingText.textContent = `Chargement ${playerType}...`;
+                
+                const streamUrl = `/api/video/stream/${encodeURIComponent(currentVideoKey)}`;
+                
+                if (Hls.isSupported()) {
+                    hlsPlayer = new Hls({
+                        debug: false,
+                        enableWorker: true,
+                        lowLatencyMode: false,
+                        backBufferLength: 90,
+                        maxBufferLength: 30,
+                        maxMaxBufferLength: 60,
+                        maxBufferSize: 60 * 1000 * 1000,
+                        maxBufferHole: 0.5,
+                        highBufferWatchdogPeriod: 3,
+                        nudgeOffset: 0.1,
+                        nudgeMaxRetry: 5,
+                        manifestLoadingTimeOut: 20000,
+                        manifestLoadingMaxRetry: 4,
+                        levelLoadingTimeOut: 20000,
+                        levelLoadingMaxRetry: 4,
+                        fragLoadingTimeOut: 30000,
+                        fragLoadingMaxRetry: 6
+                    });
+                    
+                    hlsPlayer.loadSource(streamUrl);
+                    hlsPlayer.attachMedia(hlsPlayerElement);
+                    
+                    let nonFatalErrorCount = 0;
+                    const MAX_NON_FATAL_ERRORS = 10;
+                    
+                    hlsPlayer.on(Hls.Events.MANIFEST_PARSED, () => {
+                        loadingOverlay.style.display = 'none';
+                        hlsPlayerElement.style.display = 'block';
+                        playerInitialized = true;
+                        
+                        const savedTime = {{ time_position }};
+                        if (savedTime > 0) {
+                            hlsPlayerElement.currentTime = savedTime;
+                        }
+                        
+                        hlsPlayerElement.play().catch(err => {
+                            console.warn('Autoplay bloqué');
+                        });
+                        
+                        console.log('✅ Lecteur HLS initialisé');
+                    });
+                    
+                    hlsPlayer.on(Hls.Events.ERROR, (event, data) => {
+                        console.log('HLS Error:', data.type, data.details, data.fatal ? '(FATAL)' : '');
+                        
+                        if (data.fatal) {
+                            switch (data.type) {
+                                case Hls.ErrorTypes.NETWORK_ERROR:
+                                    console.warn('⚠️ Erreur réseau');
+                                    hlsPlayer.startLoad();
+                                    break;
+                                    
+                                case Hls.ErrorTypes.MEDIA_ERROR:
+                                    console.warn('⚠️ Erreur média');
+                                    hlsPlayer.recoverMediaError();
+                                    break;
+                                    
+                                default:
+                                    console.error('❌ Erreur HLS fatale');
+                                    loadingText.textContent = 'Erreur. Passage à l\'iframe...';
+                                    setTimeout(() => {
+                                        useIframePlayer();
+                                    }, 2000);
+                                    break;
+                            }
+                        } else {
+                            nonFatalErrorCount++;
+                            console.warn(`⚠️ Erreur non fatale ${nonFatalErrorCount}/${MAX_NON_FATAL_ERRORS}`);
+                            
+                            if (nonFatalErrorCount > MAX_NON_FATAL_ERRORS) {
+                                console.error('❌ Trop d\'erreurs');
+                                setTimeout(() => {
+                                    useIframePlayer();
+                                }, 2000);
+                            }
+                        }
+                    });
+                    
+                    hlsPlayer.on(Hls.Events.FRAG_LOADING, (event, data) => {
+                        console.log(`🔄 Chargement segment ${data.frag.sn}`);
+                    });
+                    
+                    hlsPlayer.on(Hls.Events.FRAG_LOADED, (event, data) => {
+                        console.log(`✅ Segment ${data.frag.sn} chargé`);
+                        nonFatalErrorCount = Math.max(0, nonFatalErrorCount - 1);
+                    });
+                    
+                    hlsPlayerElement.addEventListener('timeupdate', () => {
+                        if (hlsPlayerElement.currentTime > 0 && !hlsPlayerElement.paused) {
+                            saveProgressThrottled(hlsPlayerElement.currentTime);
+                        }
+                    });
+                    
+                    hlsPlayerElement.addEventListener('ended', () => {
+                        saveProgress(hlsPlayerElement.duration, true);
+                    });
+                    
+                    hlsPlayerElement.addEventListener('waiting', () => {
+                        console.log('⏳ Buffering...');
+                    });
+                    
+                    hlsPlayerElement.addEventListener('playing', () => {
+                        console.log('▶️ Lecture');
+                    });
+                    
+                } else if (hlsPlayerElement.canPlayType('application/vnd.apple.mpegurl')) {
+                    // Support natif HLS (Safari)
+                    hlsPlayerElement.src = streamUrl;
+                    loadingOverlay.style.display = 'none';
+                    hlsPlayerElement.style.display = 'block';
+                    playerInitialized = true;
+                    
                     const savedTime = {{ time_position }};
                     if (savedTime > 0) {
                         hlsPlayerElement.currentTime = savedTime;
                     }
                     
                     hlsPlayerElement.play().catch(() => {});
-                });
-                
-                hlsPlayer.on(Hls.Events.ERROR, (event, data) => {
-                    if (data.fatal) {
-                        console.error('Erreur HLS fatale:', data);
-                        loadingText.textContent = 'Erreur de chargement. Passage à l\'iframe...';
-                        
-                        // Fallback vers iframe
-                        setTimeout(() => {
-                            hlsPlayerElement.style.display = 'none';
-                            iframePlayer.style.display = 'block';
-                            loadingOverlay.style.display = 'none';
-                        }, 2000);
-                    }
-                });
-                
-                // Sauvegarder la progression périodiquement
-                hlsPlayerElement.addEventListener('timeupdate', () => {
-                    if (hlsPlayerElement.currentTime > 0 && !hlsPlayerElement.paused) {
-                        saveProgressThrottled(hlsPlayerElement.currentTime);
-                    }
-                });
-                
-                hlsPlayerElement.addEventListener('ended', () => {
-                    saveProgress(hlsPlayerElement.duration, true);
-                });
-                
-            } else if (hlsPlayerElement.canPlayType('application/vnd.apple.mpegurl')) {
-                // Support natif HLS (Safari)
-                hlsPlayerElement.src = streamUrl;
-                loadingOverlay.style.display = 'none';
-                hlsPlayerElement.style.display = 'block';
-                
-                const savedTime = {{ time_position }};
-                if (savedTime > 0) {
-                    hlsPlayerElement.currentTime = savedTime;
+                    
+                    hlsPlayerElement.addEventListener('timeupdate', () => {
+                        if (hlsPlayerElement.currentTime > 0 && !hlsPlayerElement.paused) {
+                            saveProgressThrottled(hlsPlayerElement.currentTime);
+                        }
+                    });
+                    
+                    hlsPlayerElement.addEventListener('ended', () => {
+                        saveProgress(hlsPlayerElement.duration, true);
+                    });
+                    
+                    console.log('✅ Lecteur HLS natif (Safari)');
+                } else {
+                    throw new Error('HLS non supporté');
                 }
-                
-                hlsPlayerElement.play().catch(() => {});
-                
-                hlsPlayerElement.addEventListener('timeupdate', () => {
-                    if (hlsPlayerElement.currentTime > 0 && !hlsPlayerElement.paused) {
-                        saveProgressThrottled(hlsPlayerElement.currentTime);
-                    }
-                });
-                
-                hlsPlayerElement.addEventListener('ended', () => {
-                    saveProgress(hlsPlayerElement.duration, true);
-                });
-            } else {
-                throw new Error('HLS non supporté');
             }
             
         } catch (error) {
-            console.error('Erreur initialisation lecteur segmenté:', error);
+            console.error('❌ Erreur initialisation:', error);
             
-            // Fallback vers iframe
             loadingText.textContent = 'Chargement avec lecteur standard...';
             setTimeout(() => {
-                iframePlayer.style.display = 'block';
-                loadingOverlay.style.display = 'none';
+                useIframePlayer();
             }, 1500);
         }
     }
@@ -336,7 +483,7 @@
         saveProgressTimeout = setTimeout(() => {
             saveProgress(currentTime, false);
             saveProgressTimeout = null;
-        }, 5000); // Sauvegarder toutes les 5 secondes
+        }, 5000);
     }
 
     // Fonction de sauvegarde de progression
@@ -381,16 +528,20 @@
                 a.click();
                 document.body.removeChild(a);
                 
+                console.log('✅ Téléchargement lancé');
+                
             } else {
-                // Téléchargement classique (iframe)
+                // Téléchargement classique (iframe) - ouvrir la source
                 progressText.textContent = "Ouverture de la source...";
                 progressText.style.color = "#4CAF50";
                 
                 window.open(videoUrl, '_blank');
+                
+                console.log('✅ Source ouverte dans un nouvel onglet');
             }
             
         } catch (error) {
-            console.error('Erreur téléchargement:', error);
+            console.error('❌ Erreur téléchargement:', error);
             progressText.textContent = "Échec du téléchargement.";
             progressText.style.color = "#F44336";
         } finally {
@@ -406,7 +557,7 @@
 
     // Sauvegarder avant de quitter
     window.addEventListener('beforeunload', () => {
-        if (useSegmentation) {
+        if (useSegmentation && playerInitialized) {
             const hlsPlayerElement = document.getElementById('hls-player');
             if (hlsPlayerElement.currentTime > 0) {
                 saveProgress(hlsPlayerElement.currentTime, false);
