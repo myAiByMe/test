@@ -42,6 +42,15 @@
                     <p id="loading-text">Détection du lecteur...</p>
                 </div>
             </div>
+
+            <!-- Triple tap indicators -->
+            <div id="tap-indicator-left" class="tap-indicator left">
+                <i class="fas fa-backward"></i>
+            </div>
+            <div id="tap-indicator-right" class="tap-indicator right">
+                <i class="fas fa-forward"></i>
+            </div>
+            <div id="tap-text" class="tap-text"></div>
         </div>
     </div>
 
@@ -178,6 +187,62 @@
     .language-selector .lang-btn:hover:not(.active) {
         background: rgba(var(--accent-color-rgb), 0.1);
     }
+
+    /* Triple tap indicators */
+    .tap-indicator {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        background: rgba(0, 0, 0, 0.7);
+        color: white;
+        padding: 20px;
+        border-radius: 50%;
+        font-size: 24px;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        z-index: 100;
+    }
+
+    .tap-indicator.show {
+        opacity: 1;
+        animation: tapPulse 0.3s ease;
+    }
+
+    .tap-indicator.left {
+        left: 20px;
+    }
+
+    .tap-indicator.right {
+        right: 20px;
+    }
+
+    @keyframes tapPulse {
+        0% { transform: translateY(-50%) scale(0.8); }
+        50% { transform: translateY(-50%) scale(1.2); }
+        100% { transform: translateY(-50%) scale(1); }
+    }
+
+    .tap-text {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-size: 14px;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        z-index: 101;
+        white-space: nowrap;
+    }
+
+    .tap-text.show {
+        opacity: 1;
+    }
 </style>
 {% endblock %}
 
@@ -211,6 +276,9 @@
         
         // Initialize player
         initializePlayer();
+
+        // Initialize triple tap controls
+        initializeTripleTap();
     });
 
     function updateLanguageButtons() {
@@ -707,6 +775,234 @@
             }
         }
     });
+
+    // ============================================
+    // CUSTOM TAP CONTROLS
+    // ============================================
+    function initializeTripleTap() {
+        const playerWrapper = document.querySelector('.player-wrapper');
+        const videoContainer = document.querySelector('.video-container');
+        const hlsPlayerElement = document.getElementById('hls-player');
+        const iframePlayer = document.getElementById('iframe-player');
+        const tapIndicatorLeft = document.getElementById('tap-indicator-left');
+        const tapIndicatorRight = document.getElementById('tap-indicator-right');
+        const tapText = document.getElementById('tap-text');
+
+        let tapCount = 0;
+        let tapTimer = null;
+        let lastTapTime = 0;
+        let lastTapX = 0;
+        let lastTapSide = null;
+        let clickActionTimer = null;
+
+        // Constantes
+        const TAP_DELAY = 300; // ms entre chaque tap pour double/triple
+        const SINGLE_CLICK_DELAY = 250; // ms d'attente pour détecter si c'est un simple clic
+        const SEEK_SECONDS = 10; // secondes à avancer/reculer
+
+        // Désactiver le double-clic natif pour plein écran
+        playerWrapper.addEventListener('dblclick', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+        });
+
+        hlsPlayerElement.addEventListener('dblclick', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+        });
+
+        function getActivePlayer() {
+            if (useSegmentation) {
+                return hlsPlayerElement;
+            }
+            return null;
+        }
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                // Entrer en plein écran
+                if (videoContainer.requestFullscreen) {
+                    videoContainer.requestFullscreen();
+                } else if (videoContainer.webkitRequestFullscreen) {
+                    videoContainer.webkitRequestFullscreen();
+                } else if (videoContainer.mozRequestFullScreen) {
+                    videoContainer.mozRequestFullScreen();
+                } else if (videoContainer.msRequestFullscreen) {
+                    videoContainer.msRequestFullscreen();
+                }
+                console.log('🖥️ Plein écran activé');
+            } else {
+                // Sortir du plein écran
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else if (document.webkitExitFullscreen) {
+                    document.webkitExitFullscreen();
+                } else if (document.mozCancelFullScreen) {
+                    document.mozCancelFullScreen();
+                } else if (document.msExitFullscreen) {
+                    document.msExitFullscreen();
+                }
+                console.log('🖥️ Plein écran désactivé');
+            }
+        }
+
+        function showTapIndicator(direction, seconds) {
+            const indicator = direction === 'left' ? tapIndicatorLeft : tapIndicatorRight;
+            const text = direction === 'left' ? `-${seconds}s` : `+${seconds}s`;
+            
+            indicator.classList.add('show');
+            tapText.textContent = text;
+            tapText.classList.add('show');
+
+            setTimeout(() => {
+                indicator.classList.remove('show');
+            }, 500);
+
+            setTimeout(() => {
+                tapText.classList.remove('show');
+            }, 1000);
+        }
+
+        function handleDoubleTap(x) {
+            const player = getActivePlayer();
+            
+            if (!player || !player.duration) {
+                console.log('⚠️ Lecteur non disponible');
+                return;
+            }
+
+            const wasPlaying = !player.paused;
+            const playerWidth = playerWrapper.offsetWidth;
+            const isLeftSide = x < playerWidth / 2;
+
+            if (isLeftSide) {
+                const newTime = Math.max(0, player.currentTime - SEEK_SECONDS);
+                player.currentTime = newTime;
+                showTapIndicator('left', SEEK_SECONDS);
+                console.log(`⏪ Reculer de ${SEEK_SECONDS}s → ${newTime.toFixed(1)}s`);
+            } else {
+                const newTime = Math.min(player.duration, player.currentTime + SEEK_SECONDS);
+                player.currentTime = newTime;
+                showTapIndicator('right', SEEK_SECONDS);
+                console.log(`⏩ Avancer de ${SEEK_SECONDS}s → ${newTime.toFixed(1)}s`);
+            }
+
+            if (wasPlaying) {
+                setTimeout(() => {
+                    player.play().catch(err => console.warn('Erreur play:', err));
+                }, 50);
+            }
+        }
+
+        function handleSingleClick() {
+            const player = getActivePlayer();
+            if (!player) return;
+
+            // Toggle play/pause
+            if (player.paused) {
+                player.play().catch(err => console.warn('Erreur play:', err));
+                console.log('▶️ Lecture');
+            } else {
+                player.pause();
+                console.log('⏸️ Pause');
+            }
+        }
+
+        // Gestionnaire de tap unifié
+        function handleTap(event) {
+            // Ignorer les clics sur les contrôles natifs
+            if (event.target.tagName === 'VIDEO' && event.target.controls) {
+                const rect = event.target.getBoundingClientRect();
+                const y = event.clientY - rect.top;
+                const videoHeight = rect.height;
+                
+                // Si clic dans les 15% du bas (zone des contrôles), ignorer
+                if (y > videoHeight * 0.85) {
+                    return;
+                }
+            }
+
+            const currentTime = Date.now();
+            const timeSinceLastTap = currentTime - lastTapTime;
+
+            const x = event.type.startsWith('touch') 
+                ? event.touches[0]?.clientX || event.changedTouches[0]?.clientX 
+                : event.clientX;
+
+            const playerWidth = playerWrapper.offsetWidth;
+            const isLeftSide = x < playerWidth / 2;
+            const currentSide = isLeftSide ? 'left' : 'right';
+
+            // Reset si trop de temps ou changement de côté
+            if (timeSinceLastTap > TAP_DELAY || currentSide !== lastTapSide) {
+                tapCount = 0;
+            }
+
+            tapCount++;
+            lastTapTime = currentTime;
+            lastTapX = x;
+            lastTapSide = currentSide;
+
+            console.log(`👆 Tap ${tapCount}/3 (${currentSide})`);
+
+            // Clear les timers précédents
+            if (tapTimer) {
+                clearTimeout(tapTimer);
+            }
+            if (clickActionTimer) {
+                clearTimeout(clickActionTimer);
+            }
+
+            // TRIPLE TAP = PLEIN ÉCRAN
+            if (tapCount === 3) {
+                event.preventDefault();
+                event.stopPropagation();
+                toggleFullscreen();
+                tapCount = 0;
+                lastTapSide = null;
+                return;
+            }
+
+            // DOUBLE TAP = AVANCER/RECULER
+            if (tapCount === 2) {
+                event.preventDefault();
+                event.stopPropagation();
+                
+                // Attendre un peu pour voir si c'est un triple tap
+                tapTimer = setTimeout(() => {
+                    if (tapCount === 2) {
+                        handleDoubleTap(x);
+                        tapCount = 0;
+                        lastTapSide = null;
+                    }
+                }, TAP_DELAY);
+                return;
+            }
+
+            // SIMPLE CLICK = PLAY/PAUSE (après délai)
+            if (tapCount === 1) {
+                event.preventDefault();
+                event.stopPropagation();
+                
+                clickActionTimer = setTimeout(() => {
+                    if (tapCount === 1) {
+                        handleSingleClick();
+                        tapCount = 0;
+                        lastTapSide = null;
+                    }
+                }, SINGLE_CLICK_DELAY);
+            }
+        }
+
+        // Ajouter les event listeners
+        playerWrapper.addEventListener('click', handleTap);
+        playerWrapper.addEventListener('touchend', handleTap, { passive: false });
+
+        console.log('✅ Contrôles personnalisés activés:');
+        console.log('   • Simple clic = Play/Pause');
+        console.log('   • Double tap = Avancer/Reculer 10s');
+        console.log('   • Triple tap = Plein écran');
+    }
 </script>
 {% endif %}
 {% endblock %}
