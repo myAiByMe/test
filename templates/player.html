@@ -19,6 +19,7 @@
             <!-- Lecteur vidéo HLS (pour Vidmoly et SendVid) -->
             <video id="hls-player" 
                    controls 
+                   playsinline
                    style="width: 100%; height: 100%; background: #000; display: none;">
             </video>
             
@@ -49,10 +50,7 @@
         <span id="source-info">
             Source: Chargement...
         </span>
-
-        {% if episode.languages and episode.languages|length > 0 %}
-            - Langues disponibles: {{ episode.languages|join(', ') }}
-        {% endif %}
+        <span id="current-lang" style="margin-left: 0.5rem; color: var(--accent-color); font-weight: 600;"></span>
     </div>
 
     <!-- Episode Info -->
@@ -80,9 +78,24 @@
             </button>
             {% endif %}
 
+            <!-- Language Selection Buttons (only if both VF and VOSTFR are available) -->
+            {% set has_vf = episode.urls and episode.urls.get('VF') %}
+            {% set has_vostfr = episode.urls and episode.urls.get('VOSTFR') %}
+            
+            {% if has_vf and has_vostfr %}
+            <div class="language-selector" style="display: flex; gap: 0.5rem;">
+                <button id="btn-vf" onclick="switchLanguage('VF')" class="btn btn-outline lang-btn">
+                    <i class="fas fa-language"></i> VF
+                </button>
+                <button id="btn-vostfr" onclick="switchLanguage('VOSTFR')" class="btn btn-outline lang-btn">
+                    <i class="fas fa-closed-captioning"></i> VOSTFR
+                </button>
+            </div>
+            {% endif %}
+
             <!-- Download Button -->
             <button id="downloadBtn" onclick="downloadEpisode()" class="btn btn-primary">
-                <i class="fas fa-download"></i> Télécharger l'épisode
+                <i class="fas fa-download"></i> Télécharger
             </button>
             <div id="downloadProgress" style="display:none; margin-top: 5px;">
                 <div class="progress" style="height: 10px;">
@@ -137,6 +150,7 @@
         width: 100%;
         height: 100%;
         border: none;
+        z-index: 1;
     }
 
     .spinner-border {
@@ -148,6 +162,21 @@
 
     @keyframes spinner-border {
         to { transform: rotate(360deg); }
+    }
+
+    .language-selector .lang-btn {
+        min-width: 80px;
+        transition: all 0.3s ease;
+    }
+
+    .language-selector .lang-btn.active {
+        background: var(--accent-color);
+        color: white;
+        border-color: var(--accent-color);
+    }
+
+    .language-selector .lang-btn:hover:not(.active) {
+        background: rgba(var(--accent-color-rgb), 0.1);
     }
 </style>
 {% endblock %}
@@ -161,7 +190,12 @@
     const animeId = {{ anime.anime_id if anime.anime_id else anime.id }};
     const seasonNumber = {{ season.season_number }};
     const episodeNumber = {{ episode.episode_number }};
-    const videoUrl = "{{ download_url }}";
+    
+    // Available video URLs by language
+    const videoUrls = {{ episode.urls | tojson | safe }};
+    
+    let currentLanguage = "{{ episode_lang }}";
+    let videoUrl = "{{ download_url }}";
     
     let hlsPlayer = null;
     let currentVideoKey = null;
@@ -169,33 +203,145 @@
     let playerInitialized = false;
 
     document.addEventListener('DOMContentLoaded', function() {
+        // Highlight the current language button
+        updateLanguageButtons();
+        
         // Enregistrer la progression initiale
         saveProgress(0, false);
         
-        // Déterminer le type de lecteur
-        const videoUrlLower = videoUrl.toLowerCase();
-        
-        // ⚡ IMPORTANT: Détecter UNIQUEMENT Vidmoly et SendVid pour la segmentation
-        if (videoUrlLower.includes('vidmoly') || videoUrlLower.includes('sendvid')) {
-            console.log('🎬 Lecteur segmenté détecté:', videoUrl);
-            useSegmentation = true;
-            initializeSegmentedPlayer();
-        } else {
-            // Tous les autres lecteurs → iframe directement
-            console.log('🖼️ Lecteur iframe:', videoUrl);
-            useIframePlayer();
-        }
+        // Initialize player
+        initializePlayer();
     });
 
+    function updateLanguageButtons() {
+        const btnVf = document.getElementById('btn-vf');
+        const btnVostfr = document.getElementById('btn-vostfr');
+        const currentLangSpan = document.getElementById('current-lang');
+        
+        if (btnVf && btnVostfr) {
+            btnVf.classList.remove('active');
+            btnVostfr.classList.remove('active');
+            
+            if (currentLanguage === 'VF') {
+                btnVf.classList.add('active');
+                currentLangSpan.textContent = '🎙️ Version Française';
+            } else if (currentLanguage === 'VOSTFR') {
+                btnVostfr.classList.add('active');
+                currentLangSpan.textContent = '📝 Version Sous-titrée';
+            }
+        } else {
+            // Si un seul langue disponible
+            if (currentLanguage === 'VF') {
+                currentLangSpan.textContent = '🎙️ Version Française';
+            } else if (currentLanguage === 'VOSTFR') {
+                currentLangSpan.textContent = '📝 Version Sous-titrée';
+            }
+        }
+    }
+
+    function switchLanguage(lang) {
+        if (!videoUrls[lang] || videoUrls[lang].length === 0) {
+            console.warn(`⚠️ ${lang} non disponible`);
+            return;
+        }
+        
+        // Select best URL for the language
+        const urls = videoUrls[lang];
+        const selectedUrl = selectBestUrl(urls);
+        
+        if (!selectedUrl) {
+            console.error(`❌ Pas d'URL valide pour ${lang}`);
+            return;
+        }
+        
+        console.log(`🔄 Changement vers ${lang}: ${selectedUrl}`);
+        
+        // Update global variables
+        currentLanguage = lang;
+        videoUrl = selectedUrl;
+        
+        // Update UI
+        updateLanguageButtons();
+        
+        // Cleanup existing player
+        cleanupPlayer();
+        
+        // Reinitialize player with new URL
+        initializePlayer();
+    }
+
+    function selectBestUrl(urls) {
+        if (!urls || urls.length === 0) return null;
+        if (typeof urls === 'string') return urls;
+        
+        // Priority: vidmoly > sendvid > sibnet > others
+        const vidmoly = urls.find(u => u.toLowerCase().includes('vidmoly'));
+        if (vidmoly) return vidmoly;
+        
+        const sendvid = urls.find(u => u.toLowerCase().includes('sendvid'));
+        if (sendvid) return sendvid;
+        
+        const sibnet = urls.find(u => u.toLowerCase().includes('sibnet'));
+        if (sibnet) return sibnet;
+        
+        return urls[0];
+    }
+
+    function cleanupPlayer() {
+        // Stop HLS player
+        if (hlsPlayer) {
+            hlsPlayer.destroy();
+            hlsPlayer = null;
+        }
+        
+        // Reset video elements
+        const hlsPlayerElement = document.getElementById('hls-player');
+        const iframePlayer = document.getElementById('iframe-player');
+        const loadingOverlay = document.getElementById('loading-overlay');
+        
+        hlsPlayerElement.src = '';
+        hlsPlayerElement.style.display = 'none';
+        iframePlayer.src = '';
+        iframePlayer.style.display = 'none';
+        loadingOverlay.style.display = 'flex';
+        
+        playerInitialized = false;
+        currentVideoKey = null;
+        useSegmentation = false;
+    }
+
+    function initializePlayer() {
+        // Ensure URL is in embed format for SendVid
+        let finalUrl = videoUrl;
+        if (finalUrl.includes('sendvid.com') && !finalUrl.includes('/embed/')) {
+            const videoId = finalUrl.split('/').pop().split('.')[0];
+            finalUrl = `https://sendvid.com/embed/${videoId}`;
+        }
+        
+        // Déterminer le type de lecteur
+        const videoUrlLower = finalUrl.toLowerCase();
+        
+        // Détecter UNIQUEMENT Vidmoly et SendVid pour la segmentation
+        if (videoUrlLower.includes('vidmoly') || videoUrlLower.includes('sendvid')) {
+            console.log('🎬 Lecteur segmenté détecté:', finalUrl);
+            useSegmentation = true;
+            initializeSegmentedPlayer(finalUrl);
+        } else {
+            // Tous les autres lecteurs → iframe directement
+            console.log('🖼️ Lecteur iframe:', finalUrl);
+            useIframePlayer(finalUrl);
+        }
+    }
+
     // Utiliser le lecteur iframe (pour tous les lecteurs non supportés)
-    function useIframePlayer() {
+    function useIframePlayer(url) {
         const iframePlayer = document.getElementById('iframe-player');
         const loadingOverlay = document.getElementById('loading-overlay');
         const sourceInfo = document.getElementById('source-info');
         
         // Détecter le type de lecteur
         let playerName = 'Lecteur externe';
-        const urlLower = videoUrl.toLowerCase();
+        const urlLower = url.toLowerCase();
         
         if (urlLower.includes('sibnet')) playerName = 'Sibnet';
         else if (urlLower.includes('oneupload')) playerName = 'OneUpload';
@@ -208,6 +354,7 @@
         sourceInfo.textContent = `Source: ${playerName} (iframe)`;
         
         // Afficher l'iframe
+        iframePlayer.src = url;
         iframePlayer.style.display = 'block';
         loadingOverlay.style.display = 'none';
         playerInitialized = true;
@@ -215,10 +362,7 @@
         console.log('✅ Iframe initialisée:', playerName);
     }
 
-    // ========================================
-    // 🔥 FONCTION PRINCIPALE CORRIGÉE
-    // ========================================
-    async function initializeSegmentedPlayer() {
+    async function initializeSegmentedPlayer(url) {
         const hlsPlayerElement = document.getElementById('hls-player');
         const iframePlayer = document.getElementById('iframe-player');
         const loadingOverlay = document.getElementById('loading-overlay');
@@ -228,23 +372,21 @@
         loadingText.textContent = 'Détection du type de lecteur...';
         
         try {
-            // Appeler l'API pour obtenir les infos vidéo
             const infoResponse = await fetch('/api/video/info', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url: videoUrl })
+                body: JSON.stringify({ url: url })
             });
             
             const info = await infoResponse.json();
             
-            // Si l'API retourne une erreur, passer à l'iframe
             if (!info.success) {
                 console.warn('⚠️ Segmentation non disponible:', info.error);
                 
                 if (info.use_iframe) {
                     loadingText.textContent = 'Chargement avec lecteur standard...';
                     setTimeout(() => {
-                        useIframePlayer();
+                        useIframePlayer(url);
                     }, 1000);
                     return;
                 }
@@ -257,49 +399,85 @@
             
             console.log(`✅ ${playerType} détecté`);
             
-            // ========================================
-            // 🔥 DISTINCTION CRITIQUE : SENDVID vs VIDMOLY
-            // ========================================
-            
             if (info.player_type === 'sendvid' && info.direct_mp4) {
-                // ===== SENDVID : MP4 DIRECT (pas de HLS.js) =====
                 console.log('🎬 SendVid détecté : utilisation lecteur HTML5 natif');
+                console.log('📊 État initial:', {
+                    display: hlsPlayerElement.style.display,
+                    zIndex: hlsPlayerElement.style.zIndex,
+                    overlayDisplay: loadingOverlay.style.display
+                });
                 
                 sourceInfo.textContent = `Source: SENDVID (Streaming MP4 direct)`;
                 loadingText.textContent = 'Chargement SendVid...';
                 
-                // URL du stream MP4
                 const streamUrl = `/api/video/stream/${encodeURIComponent(currentVideoKey)}`;
                 
-                // Utiliser le lecteur HTML5 natif directement
+                // Force l'affichage de la vidéo
+                hlsPlayerElement.style.position = 'absolute';
+                hlsPlayerElement.style.top = '0';
+                hlsPlayerElement.style.left = '0';
+                hlsPlayerElement.style.width = '100%';
+                hlsPlayerElement.style.height = '100%';
+                hlsPlayerElement.style.display = 'block';
+                hlsPlayerElement.style.zIndex = '5';
+                hlsPlayerElement.controls = true;
+                
+                console.log('📊 État après config:', {
+                    display: hlsPlayerElement.style.display,
+                    zIndex: hlsPlayerElement.style.zIndex,
+                    position: hlsPlayerElement.style.position
+                });
+                
+                // Cacher le loading IMMÉDIATEMENT
+                loadingOverlay.style.display = 'none';
+                console.log('👁️ Loading overlay caché');
+                
                 hlsPlayerElement.src = streamUrl;
+                hlsPlayerElement.load();
+                
+                playerInitialized = true;
+                console.log('✅ Lecteur SendVid configuré et prêt');
+                
+                hlsPlayerElement.addEventListener('loadstart', () => {
+                    console.log('📥 Début du chargement de la vidéo');
+                }, { once: true });
+                
+                hlsPlayerElement.addEventListener('loadeddata', () => {
+                    console.log('📦 Données vidéo chargées');
+                }, { once: true });
+                
+                hlsPlayerElement.addEventListener('canplay', () => {
+                    console.log('▶️ Vidéo prête à jouer');
+                }, { once: true });
                 
                 hlsPlayerElement.addEventListener('loadedmetadata', () => {
-                    loadingOverlay.style.display = 'none';
-                    hlsPlayerElement.style.display = 'block';
-                    playerInitialized = true;
+                    console.log('📊 Métadonnées chargées, durée:', hlsPlayerElement.duration);
                     
                     const savedTime = {{ time_position }};
                     if (savedTime > 0 && savedTime < hlsPlayerElement.duration) {
                         hlsPlayerElement.currentTime = savedTime;
+                        console.log('⏩ Position restaurée:', savedTime);
                     }
                     
                     hlsPlayerElement.play().catch(err => {
-                        console.warn('Autoplay bloqué, attente interaction utilisateur');
+                        console.warn('⚠️ Autoplay bloqué:', err);
                     });
                     
-                    console.log('✅ Lecteur SendVid MP4 initialisé');
+                    console.log('✅ Lecteur SendVid MP4 complètement initialisé');
                 }, { once: true });
                 
                 hlsPlayerElement.addEventListener('error', (e) => {
                     console.error('❌ Erreur lecteur SendVid:', e);
+                    const error = hlsPlayerElement.error;
+                    if (error) {
+                        console.error(`Code: ${error.code}, Message: ${error.message}`);
+                    }
                     loadingText.textContent = 'Erreur de lecture. Passage à l\'iframe...';
                     setTimeout(() => {
-                        useIframePlayer();
+                        useIframePlayer(url);
                     }, 2000);
                 });
                 
-                // Sauvegarder la progression
                 hlsPlayerElement.addEventListener('timeupdate', () => {
                     if (hlsPlayerElement.currentTime > 0 && !hlsPlayerElement.paused) {
                         saveProgressThrottled(hlsPlayerElement.currentTime);
@@ -310,17 +488,7 @@
                     saveProgress(hlsPlayerElement.duration, true);
                 });
                 
-                // Logs de debug
-                hlsPlayerElement.addEventListener('waiting', () => {
-                    console.log('⏳ Buffering SendVid...');
-                });
-                
-                hlsPlayerElement.addEventListener('playing', () => {
-                    console.log('▶️ Lecture SendVid');
-                });
-                
             } else {
-                // ===== VIDMOLY : HLS AVEC HLS.JS =====
                 console.log('🎬 Vidmoly détecté : utilisation HLS.js');
                 
                 sourceInfo.textContent = `Source: ${playerType} (HLS Segmenté - ${info.segments || '?'} segments)`;
@@ -391,7 +559,7 @@
                                     console.error('❌ Erreur HLS fatale');
                                     loadingText.textContent = 'Erreur. Passage à l\'iframe...';
                                     setTimeout(() => {
-                                        useIframePlayer();
+                                        useIframePlayer(url);
                                     }, 2000);
                                     break;
                             }
@@ -402,19 +570,10 @@
                             if (nonFatalErrorCount > MAX_NON_FATAL_ERRORS) {
                                 console.error('❌ Trop d\'erreurs');
                                 setTimeout(() => {
-                                    useIframePlayer();
+                                    useIframePlayer(url);
                                 }, 2000);
                             }
                         }
-                    });
-                    
-                    hlsPlayer.on(Hls.Events.FRAG_LOADING, (event, data) => {
-                        console.log(`🔄 Chargement segment ${data.frag.sn}`);
-                    });
-                    
-                    hlsPlayer.on(Hls.Events.FRAG_LOADED, (event, data) => {
-                        console.log(`✅ Segment ${data.frag.sn} chargé`);
-                        nonFatalErrorCount = Math.max(0, nonFatalErrorCount - 1);
                     });
                     
                     hlsPlayerElement.addEventListener('timeupdate', () => {
@@ -427,16 +586,7 @@
                         saveProgress(hlsPlayerElement.duration, true);
                     });
                     
-                    hlsPlayerElement.addEventListener('waiting', () => {
-                        console.log('⏳ Buffering...');
-                    });
-                    
-                    hlsPlayerElement.addEventListener('playing', () => {
-                        console.log('▶️ Lecture');
-                    });
-                    
                 } else if (hlsPlayerElement.canPlayType('application/vnd.apple.mpegurl')) {
-                    // Support natif HLS (Safari)
                     hlsPlayerElement.src = streamUrl;
                     loadingOverlay.style.display = 'none';
                     hlsPlayerElement.style.display = 'block';
@@ -470,12 +620,11 @@
             
             loadingText.textContent = 'Chargement avec lecteur standard...';
             setTimeout(() => {
-                useIframePlayer();
+                useIframePlayer(url);
             }, 1500);
         }
     }
 
-    // Sauvegarder la progression (throttled)
     let saveProgressTimeout = null;
     function saveProgressThrottled(currentTime) {
         if (saveProgressTimeout) return;
@@ -486,7 +635,6 @@
         }, 5000);
     }
 
-    // Fonction de sauvegarde de progression
     function saveProgress(currentTime, completed) {
         fetch('/save-progress', {
             method: 'POST',
@@ -501,7 +649,6 @@
         }).catch(error => console.error('Erreur sauvegarde progression:', error));
     }
 
-    // Fonction de téléchargement
     async function downloadEpisode() {
         const downloadBtn = document.getElementById('downloadBtn');
         const progressBar = document.getElementById('downloadProgress');
@@ -514,13 +661,11 @@
         
         try {
             if (useSegmentation && currentVideoKey) {
-                // Téléchargement via système de segmentation
                 const downloadUrl = `/api/video/download/${encodeURIComponent(currentVideoKey)}`;
                 
                 progressText.textContent = "Téléchargement en cours...";
                 progressText.style.color = "#4CAF50";
                 
-                // Créer un lien de téléchargement
                 const a = document.createElement('a');
                 a.href = downloadUrl;
                 a.download = `{{ anime.title }} - S{{ season.season_number }}E{{ episode.episode_number }}.mp4`;
@@ -531,7 +676,6 @@
                 console.log('✅ Téléchargement lancé');
                 
             } else {
-                // Téléchargement classique (iframe) - ouvrir la source
                 progressText.textContent = "Ouverture de la source...";
                 progressText.style.color = "#4CAF50";
                 
@@ -547,7 +691,7 @@
         } finally {
             setTimeout(() => {
                 downloadBtn.disabled = false;
-                downloadBtn.innerHTML = '<i class="fas fa-download"></i> Télécharger l\'épisode';
+                downloadBtn.innerHTML = '<i class="fas fa-download"></i> Télécharger';
                 if (progressText.style.color !== "#F44336") {
                     progressBar.style.display = 'none';
                 }
@@ -555,7 +699,6 @@
         }
     }
 
-    // Sauvegarder avant de quitter
     window.addEventListener('beforeunload', () => {
         if (useSegmentation && playerInitialized) {
             const hlsPlayerElement = document.getElementById('hls-player');
