@@ -645,7 +645,10 @@ def register_frontend_routes(app):
             return f"Erreur: {str(e)}", 500
     
     
-    # Routes simples
+    # ==================
+    # ROUTES SIMPLES
+    # ==================
+    
     @app.route('/save-progress', methods=['POST'])
     @login_required
     def save_progress():
@@ -700,6 +703,38 @@ def register_frontend_routes(app):
             db.session.commit()
             return jsonify({'success': True, 'action': 'added'})
     
+    
+    # 🔥 ROUTE MANQUANTE - AJOUTÉE ICI
+    @app.route('/remove-from-watching', methods=['POST'])
+    @login_required
+    def remove_from_watching():
+        """Retire un anime de la liste de visionnage"""
+        anime_id = request.form.get('anime_id', type=int)
+        
+        if not anime_id:
+            return jsonify({'success': False, 'error': 'ID manquant'}), 400
+        
+        try:
+            # Supprimer toutes les progressions de cet anime pour l'utilisateur
+            deleted_count = UserProgress.query.filter_by(
+                user_id=current_user.id,
+                anime_id=anime_id
+            ).delete()
+            
+            db.session.commit()
+            
+            logger.info(f"✅ Supprimé {deleted_count} progressions pour anime {anime_id}")
+            return jsonify({'success': True, 'deleted': deleted_count})
+        
+        except Exception as e:
+            logger.error(f"❌ Erreur suppression progression: {e}")
+            db.session.rollback()
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    
+    # ==================
+    # ERROR HANDLERS
+    # ==================
     
     @app.errorhandler(404)
     def page_not_found(e):
