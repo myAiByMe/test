@@ -443,7 +443,38 @@ def register_frontend_routes(app):
                               watching_anime=watching_anime,
                               favorite_anime=favorite_anime)
     
-    
+    @app.route('/settings', methods=['GET', 'POST'])
+    @login_required
+    def settings():
+        """Page de paramètres"""
+        if request.method == 'POST':
+            current_password = request.form.get('current_password')
+            new_username = request.form.get('new_username')
+            new_password = request.form.get('new_password')
+            confirm = request.form.get('confirm_password')
+            
+            if not current_user.check_password(current_password):
+                flash('Mot de passe actuel incorrect', 'danger')
+                return redirect(url_for('settings'))
+            
+            if new_username and new_username != current_user.username:
+                if User.query.filter_by(username=new_username).first():
+                    flash('Nom d\'utilisateur déjà pris', 'danger')
+                    return redirect(url_for('settings'))
+                current_user.username = new_username
+            
+            if new_password:
+                if new_password != confirm:
+                    flash('Les nouveaux mots de passe ne correspondent pas', 'danger')
+                    return redirect(url_for('settings'))
+                current_user.set_password(new_password)
+            
+            db.session.commit()
+            flash('Paramètres mis à jour', 'success')
+            return redirect(url_for('settings'))
+        
+        return render_template('settings.html')
+
     @app.route('/categories')
     @login_required
     def categories():
